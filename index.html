@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+  <title>HotelOS · Autonomous Hotel Brain</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #090b0f;
+      color: #e8eaf0;
+      font-family: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+      line-height: 1.5;
+      scroll-behavior: smooth;
+    }
+
+    /* typography */
+    h1, h2, h3, .mono {
+      font-family: 'Space Mono', monospace;
+      letter-spacing: -0.02em;
+    }
+
+    h1 {
+      font-size: clamp(2.5rem, 8vw, 4rem);
+      font-weight: 700;
+      line-height: 1.2;
+      background: linear-gradient(135deg, #f5a623 0%, #e2b87a 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    h2 {
+      font-size: 1.8rem;
+      margin-bottom: 1rem;
+      color: #f5a623;
+    }
+
+    .container {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 0 1.5rem;
+    }
+
+    /* header */
+    .navbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1.2rem 1.5rem;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      backdrop-filter: blur(8px);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: rgba(9,11,15,0.8);
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 1.2rem;
+      letter-spacing: 0.1em;
+    }
+    .logo-mark {
+      width: 28px;
+      height: 28px;
+      background: #f5a623;
+      clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    }
+    .nav-links a {
+      color: #8892a4;
+      text-decoration: none;
+      margin-left: 2rem;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover {
+      color: #f5a623;
+    }
+
+    /* hero */
+    .hero {
+      padding: 5rem 0 4rem;
+      text-align: center;
+    }
+    .hero p {
+      font-size: 1.2rem;
+      color: #8892a4;
+      max-width: 700px;
+      margin: 1.5rem auto 0;
+    }
+    .cta-buttons {
+      margin-top: 2rem;
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .btn {
+      padding: 0.8rem 1.8rem;
+      border-radius: 40px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    .btn-primary {
+      background: #f5a623;
+      color: #090b0f;
+    }
+    .btn-primary:hover {
+      background: #e0910f;
+      transform: scale(1.02);
+    }
+    .btn-outline {
+      border: 1px solid rgba(245,166,35,0.5);
+      color: #f5a623;
+    }
+    .btn-outline:hover {
+      background: rgba(245,166,35,0.1);
+    }
+
+    /* sections */
+    section {
+      padding: 4rem 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .section-title {
+      text-align: center;
+      margin-bottom: 3rem;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 2rem;
+    }
+    .card {
+      background: #0e1117;
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 24px;
+      padding: 1.8rem;
+      transition: border-color 0.2s;
+    }
+    .card:hover {
+      border-color: #f5a62340;
+    }
+    .card-icon {
+      font-size: 2rem;
+      margin-bottom: 1rem;
+    }
+    .card h3 {
+      font-size: 1.3rem;
+      margin-bottom: 0.75rem;
+    }
+    .card p {
+      color: #8892a4;
+    }
+
+    .agents-list {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .agent-badge {
+      background: #141820;
+      padding: 0.5rem 1rem;
+      border-radius: 40px;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.8rem;
+      border-left: 3px solid #f5a623;
+    }
+
+    .demo-screenshot {
+      background: #0e1117;
+      border-radius: 24px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.1);
+      margin-top: 2rem;
+      box-shadow: 0 20px 35px -15px rgba(0,0,0,0.5);
+    }
+    .demo-screenshot img {
+      width: 100%;
+      display: block;
+      opacity: 0.9;
+    }
+    .demo-placeholder {
+      background: #141820;
+      padding: 3rem;
+      text-align: center;
+      color: #4e5a6e;
+      font-family: monospace;
+    }
+
+    footer {
+      text-align: center;
+      padding: 3rem 1.5rem;
+      color: #4e5a6e;
+      font-size: 0.8rem;
+    }
+
+    @media (max-width: 768px) {
+      .navbar {
+        flex-direction: column;
+        gap: 1rem;
+      }
+      .nav-links a {
+        margin: 0 1rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="navbar">
+  <div class="logo">
+    <div class="logo-mark"></div>
+    <span>HOTELOS</span>
+  </div>
+  <div class="nav-links">
+    <a href="#features">Features</a>
+    <a href="#agents">Agents</a>
+    <a href="#demo">Live Demo</a>
+    <a href="#team">Team</a>
+  </div>
+</div>
+
+<main>
+  <div class="container">
+    <div class="hero">
+      <h1>HotelOS<br>The Autonomous Hotel Brain</h1>
+      <p>An AI‑powered multi‑agent system that runs hotel operations in real time — predicting needs, preventing issues, and acting autonomously.</p>
+      <div class="cta-buttons">
+        <a href="/dashboard" class="btn btn-primary">Launch Dashboard →</a>
+        <a href="https://github.com/your-repo/hotelos" class="btn btn-outline" target="_blank">GitHub</a>
+      </div>
+    </div>
+  </div>
+
+  <section id="features">
+    <div class="container">
+      <div class="section-title">
+        <h2>What makes HotelOS different?</h2>
+        <p style="color:#8892a4">It doesn't just assist — it acts.</p>
+      </div>
+      <div class="grid-3">
+        <div class="card">
+          <div class="card-icon">🤖🧠</div>
+          <h3>True Agentic System</h3>
+          <p>Orchestrator + specialised agents (Ops, Revenue, Guest Experience) that reason, use tools, and coordinate autonomously.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">⚡📊</div>
+          <h3>Real‑time Decisions</h3>
+          <p>Predictive intelligence prevents problems before they happen – from housekeeping bottlenecks to pricing optimisations.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🌍♻️</div>
+          <h3>Sustainability First</h3>
+          <p>Energy optimisation, waste reduction, and local community integration — built for the future of hospitality.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="agents">
+    <div class="container">
+      <div class="section-title">
+        <h2>Multi‑Agent Architecture</h2>
+        <p>Each agent has a clear role, memory, and tool‑use capabilities</p>
+      </div>
+      <div class="agents-list">
+        <span class="agent-badge">🧠 Orchestrator</span>
+        <span class="agent-badge">🛠️ Operations Agent</span>
+        <span class="agent-badge">💰 Revenue Agent</span>
+        <span class="agent-badge">🛎️ Guest Experience Agent</span>
+        <span class="agent-badge">🔧 Maintenance AI</span>
+        <span class="agent-badge">🍽️ F&B Agent</span>
+      </div>
+      <div class="grid-3" style="margin-top: 2rem;">
+        <div class="card">
+          <h3>Reasoning Loops</h3>
+          <p>ReAct (Reason + Act) loops visible in the feed — every thought, action, and result is logged in real time.</p>
+        </div>
+        <div class="card">
+          <h3>Tool‑Use & APIs</h3>
+          <p>Agents can update room status, assign tasks, send offers, adjust pricing, and more through mock or real hotel APIs.</p>
+        </div>
+        <div class="card">
+          <h3>Memory & State</h3>
+          <p>Long‑term guest preferences and short‑term context allow truly personalised service.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="demo">
+    <div class="container">
+      <div class="section-title">
+        <h2>Live Dashboard Experience</h2>
+        <p>Watch agents think and act in real time</p>
+      </div>
+      <div class="demo-screenshot">
+        <div class="demo-placeholder">
+          🖥️ → Interactive dashboard runs at <strong>/dashboard</strong> after setup.<br>
+          (Live feed, room map, agent status, and control panel)
+        </div>
+      </div>
+      <div style="text-align: center; margin-top: 1rem;">
+        <a href="/dashboard" class="btn btn-primary">Try the Dashboard →</a>
+      </div>
+    </div>
+  </section>
+
+  <section id="team">
+    <div class="container">
+      <div class="section-title">
+        <h2>Built for the Community</h2>
+        <p>Open‑source · Independent hotels · Sustainability</p>
+      </div>
+      <div class="grid-3">
+        <div class="card">
+          <h3>👥 Multi‑Agent Architect</h3>
+          <p>Agent design, reasoning loops, tool‑use logic, memory, orchestrator + sub‑agents, prompt engineering.</p>
+        </div>
+        <div class="card">
+          <h3>⚙️ Backend & Simulation Engineer</h3>
+          <p>Simulation engine, APIs, WebSockets, database, real‑time event stream, Docker deployment.</p>
+        </div>
+        <div class="card">
+          <h3>🎨 Frontend & Experience Engineer</h3>
+          <p>Dashboard UI, live animations, staff chat interface, hotel map, and demo controls.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <p>HotelOS — Autonomous Hotel Brain | Built for the April Agentic Mini Hack</p>
+    <p style="margin-top: 0.5rem;">Open source under MIT · Empowering independent hotels & communities</p>
+  </footer>
+</main>
+
+</body>
+</html>
