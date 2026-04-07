@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import ActivityFeed from '../components/ActivityFeed';
 
 // Agent card for the main grid
