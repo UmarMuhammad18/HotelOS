@@ -1,0 +1,26 @@
+{
+  "204": {
+    "preferences": [
+      "extra towels",
+      "late check-in",
+      "likes pasta",
+      "needs transport support"
+    ],
+    "history": [
+      "issue reported: AC not working",
+      "issue reported: AC not working"
+    ]
+  },
+  "101": {
+    "preferences": [],
+    "history": [
+      "issue reported: AC not working"
+    ]
+  },
+  "303": {
+    "preferences": [
+      "needs transport support"
+    ],
+    "history": []
+  }
+}
