@@ -1,0 +1,188 @@
+[
+  {
+    "id": "g001",
+    "name": "James Harrington",
+    "email": "j.harrington@corp.com",
+    "phone": "+44 7700 900001",
+    "status": "checked_in",
+    "room_id": "r101",
+    "loyalty_tier": "gold",
+    "is_vip": false,
+    "spending": 60,
+    "check_in": "2025-01-01T14:00:00",
+    "check_out": "2025-01-03T12:00:00",
+    "preferences": {
+      "pillow": "firm",
+      "newspaper": "Financial Times",
+      "wake_up_call": "07:00"
+    },
+    "special_requests": []
+  },
+  {
+    "id": "g002",
+    "name": "Sophie Chen",
+    "email": "sophie.chen@gmail.com",
+    "phone": "+44 7700 900002",
+    "status": "checked_in",
+    "room_id": "r103",
+    "loyalty_tier": "silver",
+    "is_vip": false,
+    "spending": 20,
+    "check_in": "2025-01-01T15:00:00",
+    "check_out": "2025-01-02T12:00:00",
+    "preferences": {
+      "diet": "vegan",
+      "allergies": ["nuts"]
+    },
+    "special_requests": ["extra blanket"]
+  },
+  {
+    "id": "g003",
+    "name": "Marcus Williams",
+    "email": "m.williams@law.co",
+    "phone": "+44 7700 900003",
+    "status": "checked_in",
+    "room_id": "r202",
+    "loyalty_tier": "platinum",
+    "is_vip": true,
+    "spending": 320,
+    "check_in": "2025-01-01T13:00:00",
+    "check_out": "2025-01-04T12:00:00",
+    "preferences": {
+      "whisky": "Macallan 18",
+      "flowers": "orchids",
+      "suite_upgrade_ok": true
+    },
+    "special_requests": ["orchids in room", "Macallan on arrival"]
+  },
+  {
+    "id": "g004",
+    "name": "Elena Petrov",
+    "email": "elenap@embassy.gov",
+    "phone": "+44 7700 900004",
+    "status": "checked_in",
+    "room_id": "r203",
+    "loyalty_tier": "gold",
+    "is_vip": true,
+    "spending": 185,
+    "check_in": "2025-01-01T12:00:00",
+    "check_out": "2025-01-03T12:00:00",
+    "preferences": {
+      "language": "Russian",
+      "diet": "halal",
+      "privacy": true
+    },
+    "special_requests": ["no housekeeping unless requested", "halal meals only"]
+  },
+  {
+    "id": "g005",
+    "name": "Tom & Lisa Baker",
+    "email": "tbaker@family.net",
+    "phone": "+44 7700 900005",
+    "status": "checked_in",
+    "room_id": "r201",
+    "loyalty_tier": "standard",
+    "is_vip": false,
+    "spending": 45,
+    "check_in": "2025-01-01T16:00:00",
+    "check_out": "2025-01-02T12:00:00",
+    "preferences": {
+      "extra_bed": true,
+      "crib": 1
+    },
+    "special_requests": ["crib in room", "extra towels"]
+  },
+  {
+    "id": "g006",
+    "name": "Rahul Sharma",
+    "email": "r.sharma@techco.io",
+    "phone": "+44 7700 900006",
+    "status": "checked_in",
+    "room_id": "r301",
+    "loyalty_tier": "gold",
+    "is_vip": false,
+    "spending": 95,
+    "check_in": "2025-01-01T17:00:00",
+    "check_out": "2025-01-05T12:00:00",
+    "preferences": {
+      "diet": "vegetarian",
+      "yoga_mat": true,
+      "late_checkout": true
+    },
+    "special_requests": ["yoga mat in room"]
+  },
+  {
+    "id": "g007",
+    "name": "Isabella Fontaine",
+    "email": "ifontaine@fashion.fr",
+    "phone": "+44 7700 900007",
+    "status": "checked_in",
+    "room_id": "r303",
+    "loyalty_tier": "platinum",
+    "is_vip": true,
+    "spending": 580,
+    "check_in": "2025-01-01T11:00:00",
+    "check_out": "2025-01-06T12:00:00",
+    "preferences": {
+      "champagne": "Krug",
+      "flowers": "white roses",
+      "spa": true
+    },
+    "special_requests": ["Krug on arrival", "white roses daily", "spa appointment tomorrow 11am"]
+  },
+  {
+    "id": "g008",
+    "name": "David Kim",
+    "email": "dkim@finance.com",
+    "phone": "+44 7700 900008",
+    "status": "checked_in",
+    "room_id": "r302",
+    "loyalty_tier": "silver",
+    "is_vip": false,
+    "spending": 75,
+    "check_in": "2025-01-01T14:00:00",
+    "check_out": "2025-01-03T12:00:00",
+    "preferences": {
+      "newspaper": "Wall Street Journal",
+      "wake_up_call": "06:30",
+      "gym": true
+    },
+    "special_requests": []
+  },
+  {
+    "id": "g009",
+    "name": "Aisha Al-Rashid",
+    "email": "aisha@diplomat.ae",
+    "phone": "+44 7700 900009",
+    "status": "checked_in",
+    "room_id": "r402",
+    "loyalty_tier": "platinum",
+    "is_vip": true,
+    "spending": 750,
+    "check_in": "2025-01-01T13:00:00",
+    "check_out": "2025-01-07T12:00:00",
+    "preferences": {
+      "diet": "halal",
+      "privacy": true,
+      "butler": true
+    },
+    "special_requests": ["butler assigned", "full privacy", "halal meals only"]
+  },
+  {
+    "id": "g010",
+    "name": "Connor Fitzgerald",
+    "email": "c.fitz@startup.io",
+    "phone": "+44 7700 900010",
+    "status": "expected",
+    "room_id": null,
+    "loyalty_tier": "silver",
+    "is_vip": false,
+    "spending": 0,
+    "check_in": null,
+    "check_out": null,
+    "preferences": {
+      "late_arrival": true
+    },
+    "special_requests": ["arriving approx 23:30 — NYC flight delay"]
+  }
+]

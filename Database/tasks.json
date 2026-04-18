@@ -1,0 +1,11 @@
+[
+  {
+    "id": "t1776503779159",
+    "status": "pending",
+    "created_at": "2026-04-18T09:16:19.159Z",
+    "completed_at": null,
+    "title": "Housekeeping room 104",
+    "task_type": "housekeeping",
+    "priority": "high"
+  }
+]

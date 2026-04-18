@@ -1,0 +1,18 @@
+[
+  {
+    "id": "a1776249393399",
+    "agent": "operations",
+    "action_type": "assign_task",
+    "description": "Assigned housekeeping to room 104",
+    "impact": "Room ready in 20 min",
+    "created_at": "2026-04-15T10:36:33.399Z"
+  },
+  {
+    "id": "a1776503779140",
+    "agent": "orchestrator",
+    "action_type": "assign_task",
+    "description": "Assigned room prep to Maria Santos",
+    "impact": "Room 104 ready in 20 min",
+    "created_at": "2026-04-18T09:16:19.141Z"
+  }
+]

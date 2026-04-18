@@ -1,0 +1,16 @@
+[
+  {
+    "id": "e1776249393373",
+    "event_type": "vip_guest",
+    "description": "VIP guest check-in — white-glove protocol activated",
+    "agent": "Guest Experience",
+    "created_at": "2026-04-15T10:36:33.374Z"
+  },
+  {
+    "id": "e1776503779123",
+    "event_type": "vip_guest",
+    "description": "VIP check-in — white-glove protocol activated",
+    "agent": "Guest Experience",
+    "created_at": "2026-04-18T09:16:19.124Z"
+  }
+]
