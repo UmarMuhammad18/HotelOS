@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: hotelos-api
+    runtime: node
+    repo: https://github.com/UmarMuhammad18/HotelOS # Replace with your repo URL
+    plan: free
+    buildCommand: cd hotelos-api && npm install
+    startCommand: cd hotelos-api && npm start
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: DATABASE_FILE
+        value: /data/hotelos.db
+      - key: JWT_SECRET
+        generateValue: true # Generate a random secret
+      - key: STRIPE_SECRET_KEY
+        sync: false # You'll set this manually in the Render dashboard
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
