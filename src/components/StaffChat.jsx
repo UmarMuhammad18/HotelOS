@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { CHAT_WS_URL } from '../config';
 
 // Message bubble component
 function MessageBubble({ message, isUser }) {
@@ -73,7 +74,7 @@ function TypingIndicator() {
   );
 }
 
-function StaffChat({ wsUrl = 'ws://localhost:8080/chat' }) {
+function StaffChat({ wsUrl = CHAT_WS_URL }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);

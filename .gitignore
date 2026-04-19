@@ -1,20 +1,3 @@
-<<<<<<< HEAD
-=======
-# Environment variables (VERY IMPORTANT)
-.env
-
-# Python cache
-__pycache__/
-*.pyc
-
-# Virtual environment
-.venv/
-env/
-
-# OS files
-.DS_Store
-Thumbs.db
->>>>>>> feature/homepage-routing
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
@@ -30,6 +13,8 @@ Thumbs.db
 
 # misc
 .DS_Store
+Thumbs.db
+.env
 .env.local
 .env.development.local
 .env.test.local
@@ -38,3 +23,13 @@ Thumbs.db
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Python (if used elsewhere in repo)
+__pycache__/
+*.pyc
+.venv/
+env/
+
+# Local SQLite (API)
+hotelos-api/dev.db
+hotelos-api/dev.db-journal

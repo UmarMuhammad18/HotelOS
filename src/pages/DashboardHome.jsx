@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import ActivityFeed from '../components/ActivityFeed';
 import ControlPanel from '../components/ControlPanel';
+import { WS_URL } from '../config';
 
 function MetricCard({ label, value, sub, color }) {
   return (
@@ -161,7 +162,7 @@ export default function DashboardHome() {
             LIVE ACTIVITY FEED
           </div>
           <div style={{ background: '#0e1117', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, height: 400, overflow: 'hidden' }}>
-            <ActivityFeed wsUrl="ws://localhost:8080" />
+            <ActivityFeed wsUrl={WS_URL} />
           </div>
         </div>
       </div>

@@ -1,0 +1,21 @@
+services:
+  hotelos-api:
+    build:
+      context: .
+      dockerfile: hotelos-api/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      DATABASE_FILE: "/data/hotelos.db"
+      DATABASE_SEED_DIR: "/app/Database"
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      OPENCLAW_API_URL: ${OPENCLAW_API_URL:-}
+      OPENCLAW_API_KEY: ${OPENCLAW_API_KEY:-}
+    volumes:
+      - hotelos-sqlite:/data
+
+volumes:
+  hotelos-sqlite: {}

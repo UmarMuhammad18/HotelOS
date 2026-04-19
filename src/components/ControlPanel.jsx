@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 
-// API base URL – change to your actual backend
-const API_BASE = 'http://localhost:8080/api';
+import { API_BASE } from '../config';
+
+const API_ROOT = `${API_BASE}/api`;
 
 export default function ControlPanel() {
   const [isRunning, setIsRunning] = useState(false);
@@ -27,7 +28,7 @@ export default function ControlPanel() {
     try {
       const options = { method, headers: { 'Content-Type': 'application/json' } };
       if (body) options.body = JSON.stringify(body);
-      const response = await fetch(`${API_BASE}${endpoint}`, options);
+      const response = await fetch(`${API_ROOT}${endpoint}`, options);
       if (!response.ok) throw new Error(`API error: ${response.status}`);
       const data = await response.json();
       setMessage(`✅ ${endpoint} successful`);

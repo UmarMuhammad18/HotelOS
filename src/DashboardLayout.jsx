@@ -4,6 +4,7 @@ import ConnectionStatus from './components/ConnectionStatus';
 import EventAnimationTrigger from './components/EventAnimationTrigger';
 import NotificationCenter from './components/NotificationCenter';
 import { useWebSocketClient } from './hooks/useWebSocketClient';
+import { WS_URL } from './config';
 import { useDarkMode } from './hooks/useDarkMode';
 
 const topBarStyles = {
@@ -105,7 +106,7 @@ function Sidebar() {
 }
 
 export default function DashboardLayout() {
-  useWebSocketClient('ws://localhost:8080');
+  useWebSocketClient(WS_URL);
 
   // Keyboard shortcuts
   useEffect(() => {

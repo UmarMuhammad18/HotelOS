@@ -1,7 +1,8 @@
 import { useEffect, useRef, useCallback } from 'react';
 import useWebSocketStore from '../stores/useWebSocketStore';
+import { WS_URL } from '../config';
 
-export function useWebSocketClient(url = 'ws://localhost:8080') {
+export function useWebSocketClient(url = WS_URL) {
   const wsRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
   const {

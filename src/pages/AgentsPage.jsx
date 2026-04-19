@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import ActivityFeed from '../components/ActivityFeed';
+import { WS_URL } from '../config';
 
 // Agent card for the main grid
 function AgentCard({ name, role, emoji, status, description, lastActive }) {
@@ -218,7 +219,7 @@ export default function AgentsPage() {
           height: 320,
           overflow: 'hidden',
         }}>
-          <ActivityFeed wsUrl="ws://localhost:8080" />
+          <ActivityFeed wsUrl={WS_URL} />
         </div>
       </div>
     </div>

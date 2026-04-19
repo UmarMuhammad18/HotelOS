@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useWebSocket } from '../hooks/useWebSocket';
+import { WS_URL } from '../config';
 
 // Color mapping for action types
 const typeConfig = {
@@ -9,6 +10,7 @@ const typeConfig = {
   execution: { color: '#f5a623', bg: 'rgba(245,166,35,0.12)', label: 'EXECUTION' },
   alert: { color: '#f87171', bg: 'rgba(248,113,113,0.12)', label: 'ALERT' },
   success: { color: '#4ade80', bg: 'rgba(74,222,128,0.12)', label: 'SUCCESS' },
+  status_change: { color: '#2dd4bf', bg: 'rgba(45,212,191,0.12)', label: 'ROOM' },
 };
 
 // Single feed item with animation
@@ -55,7 +57,11 @@ function FeedItem({ item, index }) {
           <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 11, color: config.color }}>
             [{item.agent || 'Unknown Agent'}]
           </span>
-          <span style={{ fontSize: 12, color: '#e8eaf0' }}>{item.message}</span>
+          <span style={{ fontSize: 12, color: '#e8eaf0' }}>
+            {item.type === 'status_change' && item.room
+              ? `Room ${item.room} → ${item.status || ''}`
+              : item.message}
+          </span>
         </div>
         {item.details && (
           <div style={{ fontSize: 11, color: '#8892a4', marginTop: 4 }}>
@@ -77,7 +83,7 @@ function FeedItem({ item, index }) {
   );
 }
 
-export default function ActivityFeed({ wsUrl = 'ws://localhost:8080' }) {
+export default function ActivityFeed({ wsUrl = WS_URL }) {
   const [events, setEvents] = useState([]);
   const [autoScroll, setAutoScroll] = useState(true);
   const feedRef = useRef(null);

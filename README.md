@@ -1,70 +1,81 @@
-# Getting Started with Create React App
+# HotelOS
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Monorepo for the **HotelOS** hospitality stack: a Create React App dashboard (Vercel), a **Node.js + Express + WebSocket API** (`hotelos-api`), and an **Expo SDK 51** mobile client (`hotelos-mobile`).
 
-## Available Scripts
+## Repository layout
 
-In the project directory, you can run:
+| Path | Description |
+|------|-------------|
+| `src/` | React web dashboard (CRA) |
+| `hotelos-api/` | Production API: REST + WebSockets, SQLite via **sql.js** (WASM, no native DB binaries), Stripe, JWT login |
+| `hotelos-mobile/` | Expo + TypeScript mobile app |
+| `Database/` | Seed JSON for rooms and guests (used by the API on first boot) |
+| `docker-compose.yml` | Runs `hotelos-api` with a persistent SQLite file volume |
 
-### `npm start`
+## Quick start — API
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+```bash
+cd hotelos-api
+cp .env.example .env   # optional: edit PORT / secrets
+npm install
+npm start
+```
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+- REST: `http://localhost:8080/api/...`
+- Agent feed WebSocket: `ws://localhost:8080/` (same path convention as the legacy dev server)
+- Chat WebSocket: `ws://localhost:8080/chat`
 
-### `npm test`
+On first start the API creates `hotelos-api/dev.db` and seeds from `../Database/rooms.json` and `guests.json`. Staff demo user: `demo@hotelos.app` / `staff123`.
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+## Quick start — web dashboard
 
-### `npm run build`
+```bash
+npm install
+cp .env.example .env.local
+# Set REACT_APP_API_URL to your deployed API (https://...) for production
+npm start
+```
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+Vercel: add the same variables in **Project → Settings → Environment Variables**. Rebuild after changing them.
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+## Quick start — mobile
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+```bash
+cd hotelos-mobile
+npm install
+npx expo start
+```
 
-### `npm run eject`
+Use **Settings → API base URL** so a physical device can reach your machine (`http://192.168.x.x:8080`) or your cloud API (`https://...`). Changing the URL bumps the socket connections automatically.
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+See [MOBILE_BUILD.md](./MOBILE_BUILD.md) for EAS Build and store submission.
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+## API reference
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+See [BACKEND_API.md](./BACKEND_API.md) for every route and WebSocket payload.
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+## Deployment (API)
 
-## Learn More
+### Docker (from repo root)
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+```bash
+docker compose up --build
+```
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+Build context is the repository root so `Database/` is available for seeding. Set `JWT_SECRET`, `STRIPE_SECRET_KEY`, and `STRIPE_WEBHOOK_SECRET` in your environment or in `docker-compose.yml`.
 
-### Code Splitting
+### Render / Railway / Fly.io
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+1. Point the service to **`hotelos-api`** (install command `npm install`, start `npm start`).
+2. Set `PORT` to the platform’s assigned port (often automatic).
+3. Mount a **persistent disk** for `DATABASE_FILE` (e.g. `/data/hotelos.db`) so SQLite survives restarts.
+4. Configure Stripe keys and webhook URL (`https://<host>/api/stripe-webhook`).
 
-### Analyzing the Bundle Size
+## Tech notes
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+- **Persistence**: SQLite through **sql.js** keeps deployments simple and avoids Prisma/native engine issues on some Windows ARM dev machines. The same SQL schema can be migrated to PostgreSQL later if you prefer.
+- **Charts on mobile**: The web app uses Recharts; Recharts targets DOM. The mobile app uses **lightweight SVG-style metrics** and Lottie where charts would go; for native charting you can add Victory Native or Skia in a follow-up.
 
-### Making a Progressive Web App
+## License
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+Private / your terms.
