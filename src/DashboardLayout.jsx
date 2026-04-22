@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import ConnectionStatus from './components/ConnectionStatus';
 import EventAnimationTrigger from './components/EventAnimationTrigger';
 import NotificationCenter from './components/NotificationCenter';
@@ -7,134 +7,215 @@ import { useWebSocketClient } from './hooks/useWebSocketClient';
 import { WS_URL } from './config';
 import { useDarkMode } from './hooks/useDarkMode';
 
-const topBarStyles = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  padding: '0 20px',
-  height: '56px',
-  background: '#0e1117',
-  borderBottom: '1px solid rgba(255,255,255,0.07)',
-};
-
-const logoStyles = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '10px',
-  fontFamily: "'Space Mono', monospace",
-  fontWeight: 700,
-  fontSize: '14px',
-  letterSpacing: '0.12em',
-  color: '#f5a623',
-};
-
-const sidebarStyles = {
-  width: '240px',
-  background: '#0c0f16',
-  borderRight: '1px solid rgba(255,255,255,0.07)',
-  padding: '20px 0',
-};
-
-const navLinkStyles = {
-  display: 'block',
-  padding: '10px 20px',
-  color: '#8892a4',
-  textDecoration: 'none',
-  fontFamily: "'Space Mono', monospace",
-  fontSize: '12px',
-  transition: 'all 0.2s',
-};
-
-const activeLinkStyles = {
-  ...navLinkStyles,
-  color: '#f5a623',
-  background: 'rgba(245,166,35,0.08)',
-  borderRight: '2px solid #f5a623',
-};
-
-function TopBar() {
-  const [isDark, setIsDark] = useDarkMode();
-
-  return (
-    <div style={topBarStyles}>
-      <div style={logoStyles}>
-        <div style={{
-          width: 24,
-          height: 24,
-          background: '#f5a623',
-          clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)'
-        }} />
-        <span>HOTELOS</span>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-        <NotificationCenter />
-        <ConnectionStatus />
-        <button
-          onClick={() => setIsDark(!isDark)}
-          style={{ background: 'transparent', border: 'none', fontSize: 18, cursor: 'pointer' }}
-        >
-          {isDark ? '☀️' : '🌙'}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function Sidebar() {
-  const location = useLocation();
-  const isActive = (path) => location.pathname === `/dashboard${path}`;
-
-  return (
-    <div style={sidebarStyles}>
-      <Link to="/dashboard" style={isActive('') ? activeLinkStyles : navLinkStyles}>
-        🏠 Dashboard Home
-      </Link>
-      <Link to="/dashboard/map" style={isActive('/map') ? activeLinkStyles : navLinkStyles}>
-        🗺️ Hotel Map
-      </Link>
-      <Link to="/dashboard/agents" style={isActive('/agents') ? activeLinkStyles : navLinkStyles}>
-        🤖 Agents
-      </Link>
-      <Link to="/dashboard/chat" style={isActive('/chat') ? activeLinkStyles : navLinkStyles}>
-        💬 Staff Chat
-      </Link>
-      <Link to="/dashboard/tasks" style={isActive('/tasks') ? activeLinkStyles : navLinkStyles}>
-        📋 Task Board
-      </Link>
-    </div>
-  );
-}
-
 export default function DashboardLayout() {
+  const [isSidebarOpen, setSidebarOpen] = useState(false);
+  const [isDark, setIsDark] = useDarkMode();
+  const location = useLocation();
+  
   useWebSocketClient(WS_URL);
 
-  // Keyboard shortcuts
+  const isActive = (path) => location.pathname === `/dashboard${path}`;
+
   useEffect(() => {
     const handleKeyPress = (e) => {
-      if (e.ctrlKey && e.key === 'm') {
-        window.location.href = '/dashboard/map';
-      } else if (e.ctrlKey && e.key === 't') {
-        window.location.href = '/dashboard/tasks';
-      } else if (e.ctrlKey && e.key === 'a') {
-        window.location.href = '/dashboard/agents';
-      } else if (e.ctrlKey && e.key === 'h') {
-        window.location.href = '/dashboard';
-      }
+      if (e.ctrlKey && e.key === 'm') window.location.href = '/dashboard/map';
+      else if (e.ctrlKey && e.key === 't') window.location.href = '/dashboard/tasks';
+      else if (e.ctrlKey && e.key === 'a') window.location.href = '/dashboard/agents';
+      else if (e.ctrlKey && e.key === 'h') window.location.href = '/dashboard';
     };
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, []);
 
+  // Close sidebar on navigation (mobile)
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location]);
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#090b0f' }}>
+    <div className="dashboard-container">
+      <style>{`
+        .dashboard-container {
+          display: flex;
+          flex-direction: column;
+          height: 100vh;
+          background: #090b0f;
+          color: #e8eaf0;
+          font-family: 'Outfit', sans-serif;
+        }
+
+        .top-bar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 20px;
+          height: 64px;
+          background: #0e1117;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+          z-index: 100;
+        }
+
+        .logo-section {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          font-weight: 700;
+          letter-spacing: 0.1em;
+          color: #f5a623;
+          text-decoration: none;
+        }
+
+        .menu-toggle {
+          display: none;
+          background: none;
+          border: none;
+          color: #fff;
+          font-size: 24px;
+          cursor: pointer;
+          padding: 8px;
+        }
+
+        .main-layout {
+          display: flex;
+          flex: 1;
+          overflow: hidden;
+          position: relative;
+        }
+
+        .sidebar {
+          width: 260px;
+          background: #0c0f16;
+          border-right: 1px solid rgba(255, 255, 255, 0.07);
+          padding: 24px 0;
+          transition: transform 0.3s ease;
+          z-index: 90;
+        }
+
+        .nav-link {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 14px 24px;
+          color: #8892a4;
+          text-decoration: none;
+          font-size: 14px;
+          font-weight: 500;
+          transition: all 0.2s;
+          border-left: 3px solid transparent;
+        }
+
+        .nav-link:hover {
+          color: #fff;
+          background: rgba(255, 255, 255, 0.02);
+        }
+
+        .nav-link.active {
+          color: #f5a623;
+          background: rgba(245, 166, 35, 0.08);
+          border-left-color: #f5a623;
+        }
+
+        .content-area {
+          flex: 1;
+          overflow: auto;
+          padding: 32px;
+          background: radial-gradient(circle at top right, rgba(245, 166, 35, 0.03), transparent);
+        }
+
+        .overlay {
+          display: none;
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.7);
+          backdrop-filter: blur(4px);
+          z-index: 85;
+        }
+
+        @media (max-width: 1024px) {
+          .sidebar {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            transform: translateX(-100%);
+          }
+
+          .sidebar.open {
+            transform: translateX(0);
+          }
+
+          .menu-toggle {
+            display: block;
+          }
+
+          .overlay.open {
+            display: block;
+          }
+
+          .content-area {
+            padding: 20px;
+          }
+        }
+      `}</style>
+
       <EventAnimationTrigger />
-      <TopBar />
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        <Sidebar />
-        <div style={{ flex: 1, overflow: 'auto', padding: '20px' }}>
-          <Outlet />
+      
+      <header className="top-bar">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <button className="menu-toggle" onClick={() => setSidebarOpen(!isSidebarOpen)}>
+            {isSidebarOpen ? '✕' : '☰'}
+          </button>
+          <Link to="/" className="logo-section">
+            <div style={{
+              width: 24,
+              height: 24,
+              background: '#f5a623',
+              clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)'
+            }} />
+            <span>HOTELOS</span>
+          </Link>
         </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <NotificationCenter />
+          <ConnectionStatus />
+          <button
+            onClick={() => setIsDark(!isDark)}
+            style={{ background: 'transparent', border: 'none', fontSize: 18, cursor: 'pointer', color: '#fff' }}
+          >
+            {isDark ? '☀️' : '🌙'}
+          </button>
+        </div>
+      </header>
+
+      <div className="main-layout">
+        <div className={`overlay ${isSidebarOpen ? 'open' : ''}`} onClick={() => setSidebarOpen(false)} />
+        
+        <aside className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
+          <Link to="/dashboard" className={`nav-link ${isActive('') ? 'active' : ''}`}>
+            <span>🏠</span> Dashboard Home
+          </Link>
+          <Link to="/dashboard/map" className={`nav-link ${isActive('/map') ? 'active' : ''}`}>
+            <span>🗺️</span> Hotel Map
+          </Link>
+          <Link to="/dashboard/agents" className={`nav-link ${isActive('/agents') ? 'active' : ''}`}>
+            <span>🤖</span> Agents
+          </Link>
+          <Link to="/dashboard/chat" className={`nav-link ${isActive('/chat') ? 'active' : ''}`}>
+            <span>💬</span> Staff Chat
+          </Link>
+          <Link to="/dashboard/tasks" className={`nav-link ${isActive('/tasks') ? 'active' : ''}`}>
+            <span>📋</span> Task Board
+          </Link>
+        </aside>
+
+        <main className="content-area">
+          <Outlet />
+        </main>
       </div>
     </div>
   );
-}
+}

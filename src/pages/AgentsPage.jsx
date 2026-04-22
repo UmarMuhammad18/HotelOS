@@ -2,58 +2,36 @@ import { useState } from 'react';
 import ActivityFeed from '../components/ActivityFeed';
 import { WS_URL } from '../config';
 
-// Agent card for the main grid
 function AgentCard({ name, role, emoji, status, description, lastActive }) {
   const statusColor = status === 'active' ? '#4ade80' : status === 'busy' ? '#f5a623' : '#4e5a6e';
   const statusText = status === 'active' ? 'Active' : status === 'busy' ? 'Busy' : 'Idle';
 
   return (
-    <div style={{
-      background: '#0e1117',
-      border: '1px solid rgba(255,255,255,0.07)',
-      borderRadius: 12,
-      padding: '16px',
-      transition: 'border-color 0.2s',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-        <div style={{ fontSize: 28 }}>{emoji}</div>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 16, fontWeight: 600, color: '#e8eaf0' }}>{name}</div>
-          <div style={{ fontSize: 11, color: '#8892a4', fontFamily: "'Space Mono', monospace" }}>{role}</div>
+    <div className="agent-full-card">
+      <div className="agent-card-header">
+        <div className="agent-emoji-large">{emoji}</div>
+        <div className="agent-titles">
+          <div className="agent-name-large">{name}</div>
+          <div className="agent-role-tag">{role}</div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor }} />
-          <span style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: statusColor }}>{statusText}</span>
+        <div className="agent-status-indicator">
+          <div className="status-dot" style={{ background: statusColor }} />
+          <span className="status-label" style={{ color: statusColor }}>{statusText}</span>
         </div>
       </div>
-      <div style={{ fontSize: 12, color: '#8892a4', marginBottom: 12 }}>{description}</div>
-      <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: '#4e5a6e' }}>
+      <div className="agent-desc">{description}</div>
+      <div className="agent-footer">
         Last active: {lastActive}
       </div>
     </div>
   );
 }
 
-// Tool card for available agent tools
 function ToolCard({ name, description, onClick }) {
   return (
-    <button
-      onClick={onClick}
-      style={{
-        background: '#0e1117',
-        border: '1px solid rgba(255,255,255,0.07)',
-        borderRadius: 8,
-        padding: '10px 14px',
-        textAlign: 'left',
-        cursor: 'pointer',
-        transition: 'border-color 0.2s',
-        width: '100%',
-      }}
-      onMouseEnter={(e) => e.currentTarget.style.borderColor = '#f5a623'}
-      onMouseLeave={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)'}
-    >
-      <div style={{ fontSize: 13, fontWeight: 500, color: '#e8eaf0', marginBottom: 4 }}>{name}</div>
-      <div style={{ fontSize: 11, color: '#8892a4' }}>{description}</div>
+    <button className="tool-card-btn" onClick={onClick}>
+      <div className="tool-name">{name}</div>
+      <div className="tool-desc">{description}</div>
     </button>
   );
 }
@@ -63,93 +41,132 @@ export default function AgentsPage() {
   const [agentLogs, setAgentLogs] = useState([]);
 
   const agents = [
-    {
-      id: 'orchestrator',
-      name: 'Orchestrator',
-      role: 'Central Brain',
-      emoji: '🧠',
-      status: 'active',
-      description: 'Coordinates all sub‑agents, resolves conflicts, and enforces hotel policies.',
-      lastActive: 'Just now',
-    },
-    {
-      id: 'revenue',
-      name: 'Revenue Agent',
-      role: 'Pricing & Upselling',
-      emoji: '💰',
-      status: 'active',
-      description: 'Analyzes demand, adjusts room rates, and offers personalised upgrades.',
-      lastActive: 'Just now',
-    },
-    {
-      id: 'operations',
-      name: 'Operations Agent',
-      role: 'Task Assignment',
-      emoji: '🛠️',
-      status: 'busy',
-      description: 'Assigns housekeeping, maintenance, and staff tasks in real time.',
-      lastActive: '2 seconds ago',
-    },
-    {
-      id: 'guest',
-      name: 'Guest Experience Agent',
-      role: 'Personalised Service',
-      emoji: '🛎️',
-      status: 'busy',
-      description: 'Handles requests, sends offers, and anticipates guest needs.',
-      lastActive: '5 seconds ago',
-    },
-    {
-      id: 'maintenance',
-      name: 'Maintenance Agent',
-      role: 'Issue Detection',
-      emoji: '🔧',
-      status: 'idle',
-      description: 'Monitors sensors, predicts failures, and dispatches technicians.',
-      lastActive: '2 minutes ago',
-    },
+    { id: 'orchestrator', name: 'Orchestrator', role: 'Central Brain', emoji: '🧠', status: 'active', description: 'Coordinates all sub‑agents, resolves conflicts, and enforces hotel policies.', lastActive: 'Just now' },
+    { id: 'revenue', name: 'Revenue Agent', role: 'Pricing & Upselling', emoji: '💰', status: 'active', description: 'Analyzes demand, adjusts room rates, and offers personalised upgrades.', lastActive: 'Just now' },
+    { id: 'operations', name: 'Operations Agent', role: 'Task Assignment', emoji: '🛠️', status: 'busy', description: 'Assigns housekeeping, maintenance, and staff tasks in real time.', lastActive: '2 seconds ago' },
+    { id: 'guest', name: 'Guest Experience Agent', role: 'Personalised Service', emoji: '🛎️', status: 'busy', description: 'Handles requests, sends offers, and anticipates guest needs.', lastActive: '5 seconds ago' },
+    { id: 'maintenance', name: 'Maintenance Agent', role: 'Issue Detection', emoji: '🔧', status: 'idle', description: 'Monitors sensors, predicts failures, and dispatches technicians.', lastActive: '2 minutes ago' },
   ];
 
   const tools = [
-    { name: 'Adjust Room Rates', description: 'Modify pricing based on occupancy and demand', action: 'rate_adjust' },
-    { name: 'Assign Housekeeping', description: 'Queue cleaning tasks for specific rooms', action: 'assign_cleaning' },
-    { name: 'Send Guest Offer', description: 'Push upgrade or service offers to guests', action: 'send_offer' },
-    { name: 'Trigger Maintenance', description: 'Create a maintenance ticket', action: 'trigger_maintenance' },
+    { name: 'Adjust Room Rates', description: 'Trigger dynamic pricing analysis', event: 'overbooking' },
+    { name: 'Assign Housekeeping', description: 'Queue cleaning tasks for arrival', event: 'staff_shortage' },
+    { name: 'Send Guest Offer', description: 'Push VIP check-in protocol', event: 'vip_guest' },
+    { name: 'Trigger Maintenance', description: 'Simulate a sensor failure alert', event: 'room_issue' },
   ];
 
   const handleToolClick = (tool) => {
-    alert(`Demo: ${tool.name} would be sent to the agent system.`);
-    // Here you would send a WebSocket message to your backend
+    fetch(`${WS_URL.replace('ws', 'http')}/api/simulation/event`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ eventType: tool.event })
+    });
   };
 
   const handleAgentClick = (agent) => {
     setSelectedAgent(agent);
-    // Simulate fetching logs – replace with real data
     setAgentLogs([
-      { time: new Date().toLocaleTimeString(), log: `${agent.name} initialised` },
-      { time: new Date().toLocaleTimeString(), log: `${agent.name} is now monitoring hotel state` },
+      { time: new Date().toLocaleTimeString(), log: `${agent.name} system check complete` },
+      { time: new Date().toLocaleTimeString(), log: `Monitoring real-time telemetry for ${agent.role}` },
     ]);
   };
 
   return (
-    <div style={{ maxWidth: 1400, margin: '0 auto' }}>
-      {/* Header */}
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 24, fontFamily: "'Space Mono', monospace", color: '#e8eaf0', marginBottom: 4 }}>
-          Agent Control Center
-        </h1>
-        <p style={{ fontSize: 13, color: '#8892a4' }}>
-          Monitor and interact with the multi‑agent system
-        </p>
+    <div className="agents-page">
+      <style>{`
+        .agents-page { max-width: 1400px; margin: 0 auto; }
+        .page-header { margin-bottom: 32px; }
+        .page-title { fontSize: 24px; font-weight: 700; color: #e8eaf0; margin-bottom: 4px; }
+        .page-sub { fontSize: 13px; color: #8892a4; }
+
+        .agent-grid-layout {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 24px;
+        }
+
+        .section-heading {
+          font-size: 11px;
+          font-family: 'Space Mono', monospace;
+          color: #f5a623;
+          letter-spacing: 0.15em;
+          margin-bottom: 16px;
+          text-transform: uppercase;
+          font-weight: 600;
+        }
+
+        .agent-full-card {
+          background: #0e1117;
+          border: 1px solid rgba(255,255,255,0.07);
+          border-radius: 16px;
+          padding: 20px;
+          transition: all 0.2s;
+        }
+
+        .agent-full-card:hover { border-color: rgba(245, 166, 35, 0.3); }
+
+        .agent-card-header { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
+        .agent-emoji-large { font-size: 32px; }
+        .agent-titles { flex: 1; }
+        .agent-name-large { font-size: 16px; font-weight: 700; color: #fff; }
+        .agent-role-tag { font-size: 10px; font-family: 'Space Mono', monospace; color: #f5a623; text-transform: uppercase; }
+        .agent-status-indicator { display: flex; align-items: center; gap: 6px; }
+        .status-label { font-size: 10px; font-family: 'Space Mono', monospace; }
+
+        .agent-desc { font-size: 13px; color: #8892a4; line-height: 1.6; margin-bottom: 16px; }
+        .agent-footer { font-size: 10px; font-family: 'Space Mono', monospace; color: #3e4e62; }
+
+        .tool-card-btn {
+          background: #0e1117;
+          border: 1px solid rgba(255,255,255,0.07);
+          border-radius: 12px;
+          padding: 16px;
+          text-align: left;
+          cursor: pointer;
+          transition: all 0.2s;
+          width: 100%;
+          margin-bottom: 10px;
+        }
+
+        .tool-card-btn:hover { border-color: #f5a623; background: rgba(245, 166, 35, 0.03); }
+        .tool-name { font-size: 14px; font-weight: 600; color: #fff; margin-bottom: 4px; }
+        .tool-desc { font-size: 11px; color: #8892a4; }
+
+        .log-box {
+          background: #0e1117;
+          border: 1px solid rgba(255,255,255,0.07);
+          border-radius: 12px;
+          padding: 16px;
+          min-height: 200px;
+          max-height: 300px;
+          overflow-y: auto;
+        }
+
+        .log-entry { padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.03); font-size: 11px; font-family: 'Space Mono', monospace; color: #8892a4; }
+        .log-time { color: #3e4e62; margin-right: 8px; }
+
+        .global-feed-section {
+          margin-top: 40px;
+          background: #0e1117;
+          border: 1px solid rgba(255,255,255,0.07);
+          border-radius: 16px;
+          height: 350px;
+          overflow: hidden;
+        }
+
+        @media (max-width: 1024px) {
+          .agent-grid-layout { grid-template-columns: 1fr; }
+        }
+      `}</style>
+
+      <div className="page-header">
+        <h1 className="page-title">Agent Control Center</h1>
+        <p className="page-sub">Monitor and interact with the multi‑agent brain</p>
       </div>
 
-      {/* Two‑column layout: Agents (left) + Tools / Logs (right) */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
-        {/* Left column: Agent cards */}
+      <div className="agent-grid-layout">
         <div>
-          <div style={{ fontSize: 12, fontFamily: "'Space Mono', monospace", color: '#f5a623', letterSpacing: '0.1em', marginBottom: 12 }}>
-            ACTIVE AGENTS
-          </div>
+          <div className="section-heading">Active Agents</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {agents.map((agent) => (
               <div key={agent.id} onClick={() => handleAgentClick(agent)} style={{ cursor: 'pointer' }}>
@@ -159,69 +176,38 @@ export default function AgentsPage() {
           </div>
         </div>
 
-        {/* Right column: Tools + Logs */}
         <div>
-          {/* Tools section */}
-          <div style={{ marginBottom: 24 }}>
-            <div style={{ fontSize: 12, fontFamily: "'Space Mono', monospace", color: '#f5a623', letterSpacing: '0.1em', marginBottom: 12 }}>
-              AVAILABLE TOOLS
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {tools.map((tool) => (
-                <ToolCard key={tool.name} {...tool} onClick={() => handleToolClick(tool)} />
-              ))}
-            </div>
+          <div className="section-heading">Available Tools</div>
+          <div style={{ marginBottom: 32 }}>
+            {tools.map((tool) => (
+              <ToolCard key={tool.name} {...tool} onClick={() => handleToolClick(tool)} />
+            ))}
           </div>
 
-          {/* Agent logs (when an agent is selected) */}
-          <div>
-            <div style={{ fontSize: 12, fontFamily: "'Space Mono', monospace", color: '#f5a623', letterSpacing: '0.1em', marginBottom: 12 }}>
-              {selectedAgent ? `${selectedAgent.name} LOGS` : 'SELECT AN AGENT'}
-            </div>
-            <div style={{
-              background: '#0e1117',
-              border: '1px solid rgba(255,255,255,0.07)',
-              borderRadius: 12,
-              padding: '12px',
-              minHeight: 200,
-              maxHeight: 280,
-              overflowY: 'auto',
-            }}>
-              {selectedAgent ? (
-                agentLogs.length > 0 ? (
-                  agentLogs.map((log, idx) => (
-                    <div key={idx} style={{ padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: 11, fontFamily: "'Space Mono', monospace", color: '#8892a4' }}>
-                      <span style={{ color: '#4e5a6e' }}>[{log.time}]</span> {log.log}
-                    </div>
-                  ))
-                ) : (
-                  <div style={{ color: '#4e5a6e', textAlign: 'center', padding: 20 }}>No logs yet</div>
-                )
-              ) : (
-                <div style={{ color: '#4e5a6e', textAlign: 'center', padding: 20 }}>
-                  Click on any agent to see its activity log
+          <div className="section-heading">{selectedAgent ? `${selectedAgent.name} System Logs` : 'Select an Agent'}</div>
+          <div className="log-box">
+            {selectedAgent ? (
+              agentLogs.map((log, idx) => (
+                <div key={idx} className="log-entry">
+                  <span className="log-time">[{log.time}]</span> {log.log}
                 </div>
-              )}
-            </div>
+              ))
+            ) : (
+              <div style={{ color: '#3e4e62', textAlign: 'center', padding: 40, fontSize: 13 }}>
+                Click an agent to inspect telemetry
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Real‑time activity feed (full width) */}
-      <div style={{ marginTop: 32 }}>
-        <div style={{ fontSize: 12, fontFamily: "'Space Mono', monospace", color: '#f5a623', letterSpacing: '0.1em', marginBottom: 12 }}>
-          GLOBAL AGENT FEED
-        </div>
-        <div style={{
-          background: '#0e1117',
-          border: '1px solid rgba(255,255,255,0.07)',
-          borderRadius: 12,
-          height: 320,
-          overflow: 'hidden',
-        }}>
+      <div style={{ marginTop: 40 }}>
+        <div className="section-heading">Global Agent Telemetry</div>
+        <div className="global-feed-section">
           <ActivityFeed wsUrl={WS_URL} />
         </div>
       </div>
     </div>
   );
 }
+

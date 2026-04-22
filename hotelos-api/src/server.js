@@ -614,6 +614,24 @@ server.on('upgrade', (request, socket, head) => {
   }
 });
 
+// Graceful shutdown
+const shutdown = async () => {
+  console.log('\nShutting down HotelOS API...');
+  try {
+    const db = await getDb();
+    if (db) {
+      console.log('Final database persistence...');
+      persist(db);
+    }
+  } catch (err) {
+    console.error('Error during shutdown persistence:', err);
+  }
+  process.exit(0);
+};
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
+
 getDb()
   .then(() => {
     server.listen(PORT, () => {

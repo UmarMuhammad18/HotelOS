@@ -79,6 +79,17 @@ const CSS = `
 
 body { background: var(--bg0); color: var(--text1); font-family: var(--sans); }
 
+@media (max-width: 768px) {
+  .room-grid {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)) !important;
+    gap: 8px !important;
+  }
+  .detail-panel {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
+
 /* scrollbars */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -352,10 +363,11 @@ function DetailPanel({ room, onClose, onStatusChange }) {
       animate={{ x: 0, opacity: 1 }}
       exit={{ x: "100%", opacity: 0 }}
       transition={{ type: "spring", stiffness: 280, damping: 30 }}
+      className="detail-panel"
       style={{
         position: "fixed",
         top: 0, right: 0, bottom: 0,
-        width: 340,
+        width: "min(100%, 360px)",
         background: "var(--bg1)",
         borderLeft: `1px solid var(--border)`,
         zIndex: 1000,
@@ -590,24 +602,26 @@ function FilterBar({ active, onSelect, rooms }) {
       borderBottom: "1px solid var(--border)", background: "var(--bg1)", flexShrink: 0,
       flexWrap: "wrap",
     }}>
-      <FilterChip
-        label="All" count={total}
-        isActive={active === "all"}
-        color="var(--text1)" bg="var(--bg3)" border="var(--border-hi)"
-        onClick={() => onSelect("all")}
-      />
-      {STATUS_KEYS.map(k => {
-        const s = STATUS[k];
-        return (
-          <FilterChip key={k}
-            label={s.label} count={counts[k]}
-            isActive={active === k}
-            color={s.color} bg={s.bg} border={s.border}
-            onClick={() => onSelect(k)}
-          />
-        );
-      })}
-      <div style={{ marginLeft: "auto", fontFamily: "var(--mono)", fontSize: 10, color: "var(--text3)" }}>
+      <div className="filter-chips-container" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', flex: 1 }}>
+        <FilterChip
+          label="All" count={total}
+          isActive={active === "all"}
+          color="var(--text1)" bg="var(--bg3)" border="var(--border-hi)"
+          onClick={() => onSelect("all")}
+        />
+        {STATUS_KEYS.map(k => {
+          const s = STATUS[k];
+          return (
+            <FilterChip key={k}
+              label={s.label} count={counts[k]}
+              isActive={active === k}
+              color={s.color} bg={s.bg} border={s.border}
+              onClick={() => onSelect(k)}
+            />
+          );
+        })}
+      </div>
+      <div className="filter-stats" style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--text3)" }}>
         {total} rooms · {FLOORS.length} floors
       </div>
     </div>
@@ -805,7 +819,7 @@ export default function HotelMap({ embedded = false }) {
                 style={{ marginBottom: 24 }}
               >
                 <FloorLabel floor={floor} rooms={floorRooms} />
-                <div style={{
+                <div className="room-grid" style={{
                   display: "grid",
                   gridTemplateColumns: "repeat(auto-fill, minmax(88px, 1fr))",
                   gap: 8,
