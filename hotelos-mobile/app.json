@@ -12,7 +12,9 @@
       "resizeMode": "contain",
       "backgroundColor": "#090b0f"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.hotelos.mobile"
@@ -33,6 +35,10 @@
         }
       ]
     ],
-    "extra": {}
+    "extra": {
+      "eas": {
+        "projectId": "0f419ab3-01b8-4c3b-8beb-e9b40407a550"
+      }
+    }
   }
 }

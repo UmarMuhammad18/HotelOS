@@ -1,0 +1,18 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "3273c8ba-e3dd-46a4-a55d-da47a217be58"
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "hotelos",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.umarmuhammad.hotelosdashboard"
+    }
+  }
+}
