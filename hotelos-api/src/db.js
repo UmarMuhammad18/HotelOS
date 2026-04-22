@@ -110,7 +110,7 @@ async function getDb() {
 }
 
 async function seedFromJson(db) {
-  const seedDir = process.env.DATABASE_SEED_DIR || path.join(__dirname, '..', '..', 'Database');
+  const seedDir = process.env.DATABASE_SEED_DIR || path.join(__dirname, '..', 'Database');
   const roomsRaw = JSON.parse(fs.readFileSync(path.join(seedDir, 'rooms.json'), 'utf8'));
   const guestsRaw = JSON.parse(fs.readFileSync(path.join(seedDir, 'guests.json'), 'utf8'));
   const bcrypt = require('bcryptjs');
