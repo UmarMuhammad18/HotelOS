@@ -1,10 +1,10 @@
 import { useRef, useEffect, useState } from 'react';
-import { View, FlatList, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
-import { TextInput, IconButton, Text, useTheme } from 'react-native-paper';
+import { View, FlatList, StyleSheet, KeyboardAvoidingView, Platform, TextInput, TouchableOpacity } from 'react-native';
+import { Text } from 'react-native-paper';
+import { Ionicons } from '@expo/vector-icons';
 import { useChatWebSocket } from '../hooks/useChatWebSocket';
 
 export function ChatScreen() {
-  const theme = useTheme();
   const { connected, typing, messages, send } = useChatWebSocket();
   const [text, setText] = useState('');
   const listRef = useRef<FlatList>(null);
@@ -14,9 +14,11 @@ export function ChatScreen() {
   }, [messages, typing]);
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View style={[styles.header, { borderBottomColor: theme.colors.outline }]}>
-        <Text style={{ color: connected ? '#4ade80' : '#f87171' }}>{connected ? '● Connected' : '○ Offline'}</Text>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <View style={styles.header}>
+        <Text style={{ color: connected ? '#34C759' : '#FF3B30', fontSize: 12, fontWeight: '600', textAlign: 'center' }}>
+          {connected ? 'AI Assistant is Online' : 'Connecting...'}
+        </Text>
       </View>
       <FlatList
         ref={listRef}
@@ -25,46 +27,92 @@ export function ChatScreen() {
         contentContainerStyle={styles.list}
         renderItem={({ item }) => (
           <View style={[styles.bubble, item.isUser ? styles.user : styles.bot]}>
-            <Text style={{ color: '#e8eaf0' }}>{item.text}</Text>
-            <Text style={styles.time}>{new Date(item.timestamp).toLocaleTimeString()}</Text>
+            <Text style={{ color: '#FFFFFF', fontSize: 16 }}>{item.text}</Text>
+            <Text style={styles.time}>{new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
           </View>
         )}
         ListFooterComponent={
           typing ? (
-            <Text style={{ color: '#8892a4', margin: 8 }}>Agent is typing…</Text>
+            <View style={[styles.bubble, styles.bot, { paddingVertical: 8, paddingHorizontal: 12, width: 60 }]}>
+              <Text style={{ color: '#FFFFFF' }}>•••</Text>
+            </View>
           ) : null
         }
       />
       <View style={styles.inputRow}>
         <TextInput
-          style={{ flex: 1, backgroundColor: '#0e1117' }}
-          placeholder="Message…"
+          style={styles.input}
+          placeholder="iMessage"
+          placeholderTextColor="rgba(255,255,255,0.5)"
           value={text}
           onChangeText={setText}
+          multiline
           onSubmitEditing={() => {
-            send(text);
-            setText('');
+            if (text.trim()) { send(text); setText(''); }
           }}
         />
-        <IconButton
-          icon="send"
+        <TouchableOpacity 
+          style={[styles.sendButton, { opacity: !connected || !text.trim() ? 0.5 : 1 }]}
           disabled={!connected || !text.trim()}
           onPress={() => {
             send(text);
             setText('');
           }}
-        />
+        >
+          <Ionicons name="arrow-up" size={20} color="#FFFFFF" />
+        </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { padding: 12, borderBottomWidth: StyleSheet.hairlineWidth },
-  list: { padding: 12 },
-  bubble: { maxWidth: '85%', padding: 12, borderRadius: 12, marginBottom: 8 },
-  user: { alignSelf: 'flex-end', backgroundColor: '#f5a62333', borderWidth: 1, borderColor: '#f5a62355' },
-  bot: { alignSelf: 'flex-start', backgroundColor: '#0e1117', borderWidth: 1, borderColor: '#1f2a3c' },
-  time: { fontSize: 10, color: '#8892a4', marginTop: 4, textAlign: 'right' },
-  inputRow: { flexDirection: 'row', alignItems: 'center', padding: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#1f2a3c' },
+  container: { flex: 1, backgroundColor: '#000000' }, // Deeper black for iMessage feel
+  header: { padding: 12, borderBottomWidth: StyleSheet.hairlineWidth, backgroundColor: '#000000e6' },
+  list: { padding: 16, paddingBottom: 32 },
+  bubble: { 
+    maxWidth: '75%', 
+    paddingHorizontal: 16, 
+    paddingVertical: 10, 
+    borderRadius: 20, // iMessage style rounded corners
+    marginBottom: 12,
+  },
+  user: { 
+    alignSelf: 'flex-end', 
+    backgroundColor: '#0A84FF', // iMessage Blue
+    borderBottomRightRadius: 4, // Tail effect
+  },
+  bot: { 
+    alignSelf: 'flex-start', 
+    backgroundColor: '#1C1C1E', // iMessage Dark Gray
+    borderBottomLeftRadius: 4, // Tail effect
+  },
+  time: { fontSize: 10, color: 'rgba(255,255,255,0.5)', marginTop: 4, alignSelf: 'flex-end' },
+  inputRow: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    padding: 10, 
+    paddingBottom: 24, // Extra padding for home indicator
+    backgroundColor: '#000000',
+  },
+  input: {
+    flex: 1,
+    backgroundColor: '#1C1C1E',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
+    fontSize: 16,
+    color: '#FFFFFF',
+    maxHeight: 100,
+  },
+  sendButton: {
+    backgroundColor: '#0A84FF',
+    borderRadius: 20,
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  }
 });

@@ -1,5 +1,6 @@
 import 'react-native-gesture-handler';
 import { useEffect } from 'react';
+import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Provider as PaperProvider, MD3DarkTheme } from 'react-native-paper';
 import * as Notifications from 'expo-notifications';
@@ -26,9 +27,15 @@ const paperTheme = {
 export default function App() {
   useEffect(() => {
     loadSavedApiBase();
-    (async () => {
-      await Notifications.requestPermissionsAsync();
-    })();
+    if (Platform.OS !== 'web') {
+      (async () => {
+        try {
+          await Notifications.requestPermissionsAsync();
+        } catch (e) {
+          console.warn('Notifications not supported', e);
+        }
+      })();
+    }
   }, []);
 
   return (
