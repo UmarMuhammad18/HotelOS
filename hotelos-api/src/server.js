@@ -14,6 +14,9 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const Stripe = require('stripe');
 const { getDb, persist, all, getOne } = require('./db');
+const orchestrator = require('./agents/orchestrator');
+const simulation = require('./services/simulation');
+const openclaw = require('./services/openclaw');
 
 const PORT = Number(process.env.PORT) || 8080;
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-insecure-jwt-secret-change-me';
@@ -44,96 +47,7 @@ function broadcastFeed(obj) {
   }
 }
 
-let simRunning = false;
-let simSpeed = 1;
-let simTimer = null;
-let simIndex = 0;
-
-const SIM_MESSAGES = [
-  { type: 'thought', agent: 'Orchestrator', message: 'Analysing occupancy patterns across all floors...' },
-  { type: 'thought', agent: 'Revenue AI', message: 'Evaluating upsell opportunities for checked-in guests' },
-  { type: 'decision', agent: 'Revenue AI', message: 'Adjusting weekend rates +$22 based on demand forecast' },
-  { type: 'decision', agent: 'Orchestrator', message: 'Assigning housekeeping to room 206 — priority high' },
-  { type: 'execution', agent: 'Housekeeping AI', message: 'Room 206 status updated to cleaning' },
-  { type: 'execution', agent: 'Concierge AI', message: 'Suite upgrade offer sent to guest in room 303' },
-  { type: 'alert', agent: 'Maintenance AI', message: 'AC failure detected in Room 206 — technician dispatched' },
-  { type: 'alert', agent: 'Orchestrator', message: 'Checkout overdue for Room 211 — front desk notified' },
-  { type: 'success', agent: 'Housekeeping AI', message: 'Room 207 cleaned and ready for next guest' },
-  { type: 'success', agent: 'Revenue AI', message: 'Suite upgrade accepted by VIP guest — +$180 revenue' },
-  { type: 'thought', agent: 'Guest Experience', message: 'Checking preferences for arriving guests tonight' },
-  { type: 'decision', agent: 'Guest Experience', message: 'Proactive late-arrival prep triggered for room 104' },
-  { type: 'execution', agent: 'Concierge AI', message: 'Airport taxi confirmed for guest in room 101 at 08:00' },
-  { type: 'success', agent: 'Orchestrator', message: 'All agents operating within normal parameters' },
-];
-
-const EVENT_SCENARIOS = {
-  late_arrival: { type: 'alert', agent: 'Front Office', message: 'Late guest arrival — room 104 prep triggered', details: 'Housekeeping and concierge notified' },
-  room_issue: { type: 'alert', agent: 'Maintenance AI', message: 'AC failure reported in Room 206', details: 'Maintenance team dispatched immediately' },
-  vip_guest: { type: 'decision', agent: 'Guest Experience', message: 'VIP check-in — white-glove protocol activated', details: 'Champagne, escort, and suite upgrade offered' },
-  staff_shortage: { type: 'alert', agent: 'Orchestrator', message: 'Staff shortage — only 2 housekeepers available', details: 'Tasks re-prioritised, manager notified' },
-  overbooking: { type: 'alert', agent: 'Revenue AI', message: 'Overbooking detected — 2 rooms over capacity', details: 'Partner hotel contacted for overflow' },
-  early_checkout: { type: 'decision', agent: 'Guest Experience', message: 'Early checkout request from Room 302', details: 'Recovery offer sent — $50 F&B credit' },
-};
-
-function getChatReply(message) {
-  const m = String(message).toLowerCase();
-  if (m.includes('ac') || m.includes('cooling') || m.includes('hot'))
-    return 'Maintenance has been notified for the AC issue. A technician will arrive within 20 minutes.';
-  if (m.includes('late') || m.includes('checkout'))
-    return 'I will arrange the late checkout. What time does the guest need? I can extend up to 2 PM at no charge for loyalty members.';
-  if (m.includes('upgrade') || m.includes('suite'))
-    return 'Checking availability... Suite 304 is free tonight at +$80/night. Shall I send the offer to the guest now?';
-  if (m.includes('clean') || m.includes('housekeeping') || m.includes('towel'))
-    return 'Housekeeping dispatched. Expected to arrive in 15 minutes.';
-  if (m.includes('food') || m.includes('room service') || m.includes('order'))
-    return 'Room service order received. Estimated delivery: 30 minutes. Kitchen has been notified.';
-  if (m.includes('taxi') || m.includes('transport') || m.includes('airport'))
-    return 'I can arrange a taxi. What time does the guest need to leave, and what is the destination?';
-  if (m.includes('noise') || m.includes('complaint'))
-    return 'Complaint logged. Security has been notified and will attend within 10 minutes. Shall I offer the guest a gesture of goodwill?';
-  return 'Understood. Our agent system is processing your request. Is there anything else I can help with?';
-}
-
-function startSimulation(db, speed) {
-  if (simTimer) clearInterval(simTimer);
-  simRunning = true;
-  simSpeed = Math.min(5, Math.max(0.5, Number(speed) || simSpeed));
-  const delay = Math.round(3000 / simSpeed);
-  simTimer = setInterval(() => {
-    const msg = SIM_MESSAGES[simIndex % SIM_MESSAGES.length];
-    simIndex += 1;
-    broadcastFeed({ type: msg.type, agent: msg.agent, message: msg.message, details: 'Action taken automatically' });
-    maybeRandomRoomEvent(db);
-  }, delay);
-}
-
-function stopSimulation() {
-  simRunning = false;
-  if (simTimer) {
-    clearInterval(simTimer);
-    simTimer = null;
-  }
-}
-
-function maybeRandomRoomEvent(db) {
-  if (Math.random() > 0.35) return;
-  const rooms = all(db, 'SELECT * FROM rooms LIMIT 20');
-  if (!rooms.length) return;
-  const room = rooms[Math.floor(Math.random() * rooms.length)];
-  const statuses = ['occupied', 'cleaning', 'maintenance', 'available', 'checkout'];
-  const next = statuses[Math.floor(Math.random() * statuses.length)];
-  const map = { available: 'vacant', occupied: 'occupied', cleaning: 'cleaning', maintenance: 'maintenance', checkout: 'checkout' };
-  const webStatus = map[next] || next;
-  const dbStatus = webStatus === 'vacant' ? 'available' : webStatus;
-  db.run('UPDATE rooms SET status = ? WHERE id = ?', [dbStatus, room.id]);
-  schedulePersist(db);
-  broadcastFeed({
-    type: 'status_change',
-    room: room.number,
-    status: webStatus,
-    timestamp: new Date().toISOString(),
-  });
-}
+// Old simulation logic removed. Handled by services/simulation.js
 
 function safeJson(s, fallback) {
   try {
@@ -250,8 +164,8 @@ app.use(express.json());
 app.get('/api/health', async (req, res) => {
   res.json({
     status: 'ok',
-    simulation_running: simRunning,
-    simulation_speed: simSpeed,
+    simulation_running: simulation.getSimRunning(),
+    simulation_speed: simulation.getSimSpeed(),
     connected_feed: feedClients.size,
     connected_chat: chatClients.size,
   });
@@ -326,12 +240,8 @@ app.patch('/api/rooms/:id', async (req, res) => {
     status: updated.status === 'available' ? 'vacant' : updated.status,
     timestamp: new Date().toISOString(),
   });
-  broadcastFeed({
-    type: 'execution',
-    agent: 'Orchestrator',
-    message: `Room ${updated.number} updated — status: ${updated.status}`,
-    details: '',
-  });
+  
+  orchestrator.processEvent({ type: 'status_change', room: updated.number, status: updated.status });
   res.json(roomToApiWithDb(db, updated));
 });
 
@@ -378,44 +288,38 @@ app.post('/api/tasks/:id/complete', async (req, res) => {
 });
 
 app.post('/api/simulation/start', async (req, res) => {
-  const db = await getDb();
-  const speed = req.body?.speed ?? simSpeed;
-  startSimulation(db, speed);
+  const speed = req.body?.speed ?? simulation.getSimSpeed();
+  simulation.startSimulation(speed);
   broadcastFeed({ type: 'success', agent: 'Orchestrator', message: 'Simulation started — all agents online', details: '' });
-  res.json({ status: 'started', speed: simSpeed });
+  res.json({ status: 'started', speed: simulation.getSimSpeed() });
 });
 
 app.post('/api/simulation/stop', (req, res) => {
-  stopSimulation();
+  simulation.stopSimulation();
   broadcastFeed({ type: 'alert', agent: 'Orchestrator', message: 'Simulation paused by operator', details: '' });
   res.json({ status: 'stopped' });
 });
 
 app.put('/api/simulation/speed', async (req, res) => {
-  const db = await getDb();
   const s = Number(req.body?.speed);
-  simSpeed = Number.isFinite(s) ? Math.min(5, Math.max(0.5, s)) : simSpeed;
-  if (simRunning) startSimulation(db, simSpeed);
-  res.json({ speed: simSpeed });
+  const speed = Number.isFinite(s) ? Math.min(5, Math.max(0.5, s)) : simulation.getSimSpeed();
+  if (simulation.getSimRunning()) simulation.startSimulation(speed);
+  res.json({ speed: simulation.getSimSpeed() });
 });
 
 app.post('/api/simulation/event', (req, res) => {
   const key = req.body?.eventType;
-  const scenario = EVENT_SCENARIOS[key];
-  if (scenario) {
-    broadcastFeed({
-      type: scenario.type,
-      agent: scenario.agent,
-      message: scenario.message,
-      details: scenario.details,
-    });
+  const event = simulation.injectEvent(key);
+  if (event) {
+    res.json({ injected: key, status: 'routed_to_orchestrator' });
+  } else {
+    res.json({ error: 'Unknown event type' });
   }
-  res.json({ injected: key || 'unknown' });
 });
 
 app.post('/api/simulation/reset', async (req, res) => {
   const db = await getDb();
-  stopSimulation();
+  simulation.stopSimulation();
   db.run('DELETE FROM tasks');
   db.run('DELETE FROM notifications');
   schedulePersist(db);
@@ -489,40 +393,36 @@ app.post('/api/openclaw/command', async (req, res) => {
   const context = req.body?.context || {};
   if (!command) return res.status(400).json({ error: 'command required' });
 
-  if (OPENCLAW_API_KEY && OPENCLAW_API_URL) {
-    try {
-      const r = await fetch(`${OPENCLAW_API_URL.replace(/\/$/, '')}/command`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${OPENCLAW_API_KEY}`,
-        },
-        body: JSON.stringify({ command, context }),
-      });
-      if (r.ok) {
-        const data = await r.json();
-        return res.json({ source: 'openclaw', ...data });
-      }
-    } catch {
-      return res.json({ source: 'mock', note: 'OpenClaw unreachable, mock used', result: mockOpenclaw(command, context) });
-    }
-  }
-  res.json({ source: 'mock', result: mockOpenclaw(command, context) });
+  const result = await openclaw.callOpenClaw(command, context);
+  res.json(result);
 });
 
-function mockOpenclaw(command, context) {
-  const c = command.toLowerCase();
-  if (c.includes('price') || c.includes('revenue')) {
-    return { action: 'dynamic_pricing', message: 'Suggested +12% on premium rooms for Friday peak.', tools: ['PolyForge', 'Foundry'] };
-  }
-  if (c.includes('maint') || c.includes('repair')) {
-    return { action: 'maintenance_routing', message: 'Ticket routed to Engineering pool B — ETA 18 min.', tools: ['clawtools'] };
-  }
-  if (c.includes('guest') || c.includes('message')) {
-    return { action: 'guest_messaging', message: 'Draft welcome + upsell sent for review.', tools: ['clawtools', 'Stratus X1-AC'] };
-  }
-  return { action: 'general', message: `Processed: "${command}"`, context, tools: ['clawtools'] };
-}
+app.get('/api/openclaw/marketplace', (req, res) => {
+  res.json({
+    plugins: [
+      { id: 'plugin_1', name: 'Late checkout plugin', description: 'Automates late checkout requests' },
+      { id: 'plugin_2', name: 'VIP recognition', description: 'Flags VIP guests automatically' },
+      { id: 'plugin_3', name: 'Energy optimisation', description: 'Adjusts room temp dynamically' }
+    ],
+    forks: ['clawtools', 'PolyForge', 'Foundry', 'Stratus X1-AC'],
+    useCases: [
+      'Guest messaging automation',
+      'Pricing adjustments',
+      'Maintenance routing',
+      'Task coordination'
+    ]
+  });
+});
+
+app.post('/api/agents/decide', async (req, res) => {
+  const event = req.body;
+  orchestrator.processEvent(event);
+  res.json({ status: 'queued' });
+});
+
+app.get('/api/agents/status', (req, res) => {
+  res.json({ status: 'online', orchestrator: 'active' });
+});
 
 app.post('/api/login', async (req, res) => {
   const db = await getDb();
@@ -585,17 +485,17 @@ wssChat.on('connection', (ws) => {
     }
     if (text) {
       broadcastFeed({ type: 'thought', agent: 'Staff Chat', message: `Staff query: "${text}"`, details: '' });
+      // Forward to Agent Orchestrator
+      orchestrator.processEvent(`Staff Message: ${text}`);
+      
+      // Generic immediate acknowledgment
+      ws.send(
+        JSON.stringify({
+          message: "I have received your request and forwarded it to the AI Agent system.",
+          timestamp: new Date().toISOString(),
+        })
+      );
     }
-    setTimeout(() => {
-      if (ws.readyState === 1) {
-        ws.send(
-          JSON.stringify({
-            message: getChatReply(text),
-            timestamp: new Date().toISOString(),
-          })
-        );
-      }
-    }, 500 + Math.random() * 600);
   });
   ws.on('close', () => chatClients.delete(ws));
   ws.on('error', () => chatClients.delete(ws));
@@ -633,7 +533,20 @@ process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 
 getDb()
-  .then(() => {
+  .then((db) => {
+    // Initialize Agents
+    orchestrator.init({
+      broadcastAgentEvent: broadcastFeed,
+      db: db
+    });
+    
+    // Initialize Simulation
+    simulation.initSimulation({
+      broadcastAgentEvent: broadcastFeed,
+      getDb: getDb,
+      orchestratorProcessEvent: orchestrator.processEvent
+    });
+
     server.listen(PORT, () => {
       console.log(`\nHotelOS API listening on http://localhost:${PORT}`);
       console.log(`  Feed WS  ws://localhost:${PORT}/`);
