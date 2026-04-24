@@ -1,0 +1,20 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example
+data/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.idea/
+.vscode/
+dist/
+build/
+*.egg-info/
+
+# Ad-hoc local smoke-test scripts — not part of the service.
+test_groq.py
+test_gemini.py
+payload.json
