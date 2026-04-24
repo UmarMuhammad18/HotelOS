@@ -12,6 +12,15 @@ Responsibilities
 Node is responsible for actually broadcasting the events, calling the
 tools, and sending the guest_reply over WebSocket. This service never
 touches the DB or the WebSocket directly.
+
+Phase 2b — memory hydration
+---------------------------
+Before classification, we fetch the guest's profile from memory and
+render a compact "Guest context" block into the LLM user prompt. This
+lets the model reason over returning-guest status, repeat issues,
+preferences, VIP/accessibility flags, and recent requests. Memory
+writes still happen at the end of build_plan (single source of
+mutation, auditable).
 """
 
 from __future__ import annotations
@@ -41,6 +50,7 @@ from app.models import (
     Priority,
     StayContext,
 )
+from app.models.guest import GuestProfile
 from app.utils.logging import get_logger
 
 log = get_logger(__name__)
@@ -50,7 +60,9 @@ log = get_logger(__name__)
 
 _CLASSIFY_SYSTEM = """\
 You are the triage brain of a hotel operations AI. Given a guest message or
-system event, decide which hotel department(s) must act, and with what priority.
+system event — together with a "Guest context" block describing what we know
+about this guest — decide which hotel department(s) must act, and with what
+priority.
 
 Respond with STRICT JSON of the form:
 {
@@ -71,9 +83,20 @@ Rules:
 - Never mark a request 'emergency' unless there is clear life-safety risk.
 - If the guest sounds angry or the issue repeats, include guest_relations.
 - Default to 'normal' priority when unsure.
-- `requires_coordination_with` must always be an array (use [] if none),
-  never null.
+- `requires_coordination_with` must always be an array (use [] if none), never null.
 - Output ONLY the JSON. No prose.
+
+Use the Guest context block to reason:
+- If the guest has reported the SAME problem before during this stay or in
+  recent history, bump priority one step (normal->high, high->urgent) and
+  add guest_relations to the coordination list.
+- If the guest is VIP or has accessibility needs, lean toward higher priority
+  and fan out to guest_relations / accessibility as appropriate.
+- If preferences are known (e.g. foam pillows, quiet rooms, dietary
+  restrictions), reflect them in the action `details` so staff can act on
+  them without asking again.
+- A first-time guest with a novel request is a 'normal' unless the text
+  itself signals urgency.
 """
 
 
@@ -118,8 +141,13 @@ class Orchestrator:
             extra={"event_id": event.id, "guest": stay.guest.redacted(), "channel": event.channel},
         )
 
-        # 1. LLM triage
-        llm_result = self._classify(event)
+        # 0. Ensure a profile exists so record_request / record_preference can
+        #    actually write. upsert_from_reservation is idempotent and preserves
+        #    any learned preferences/past_requests already on file.
+        self.memory.upsert_from_reservation(stay.guest)
+
+        # 1. LLM triage — now hydrated with guest memory.
+        llm_result = self._classify(event, stay)
         actions = [DepartmentAction.model_validate(a) for a in llm_result["actions"]]
 
         # 2. Policy (emergency, accessibility fan-out, VIP)
@@ -180,9 +208,16 @@ class Orchestrator:
 
     # --------------------------------------------------------------- steps --
 
-    def _classify(self, event: HotelEvent) -> dict:
+    def _classify(self, event: HotelEvent, stay: StayContext) -> dict:
+        profile = self.memory.get_profile(stay.guest.guest_id)
+        context_block = self._build_context_block(stay, profile)
+        user_message = (
+            f"Guest context:\n{context_block}\n\n"
+            f"Current event (channel={event.channel.value}):\n{event.text}"
+        )
+
         try:
-            raw = self.llm.classify_json(system=_CLASSIFY_SYSTEM, user=event.text)
+            raw = self.llm.classify_json(system=_CLASSIFY_SYSTEM, user=user_message)
             if not raw.get("actions"):
                 raise ValueError("empty actions")
             # Best-effort validation; let invalid ones drop out silently.
@@ -209,6 +244,70 @@ class Orchestrator:
                 "intent": "unclassified",
                 "sentiment": "neutral",
             }
+
+    # --------------------------------------------------- memory hydration --
+
+    @staticmethod
+    def _build_context_block(stay: StayContext, profile: GuestProfile | None) -> str:
+        """Render a compact human-readable guest context for the LLM.
+
+        Includes: returning-guest flag, VIP/accessibility status, language,
+        recent past_requests (most recent last so the model reads them in
+        chronological order), and known preferences.
+
+        Everything here is short — we are paying per token.
+        """
+        lines: list[str] = []
+
+        # Identity & stay
+        lines.append(f"Guest: {stay.guest.full_name or stay.guest.guest_id}")
+        lines.append(f"Room: {stay.room_number}")
+        lines.append(
+            f"Stay: check-in {stay.check_in.isoformat()} → check-out {stay.check_out.isoformat()}"
+        )
+
+        # Status flags
+        flags: list[str] = []
+        if stay.guest.vip:
+            flags.append("VIP")
+        access = getattr(stay.guest, "accessibility", None)
+        if access and getattr(access, "registered_disability", False):
+            flags.append("accessibility needs")
+            if getattr(access, "requires_evacuation_assistance", False):
+                flags.append("evacuation assistance required")
+            mobility = getattr(access, "mobility_aid", None)
+            if mobility is not None and getattr(mobility, "value", "none") not in ("none", None, ""):
+                flags.append(f"mobility aid: {mobility.value}")
+        if flags:
+            lines.append("Flags: " + ", ".join(flags))
+
+        language = getattr(stay.guest, "language", None)
+        if language:
+            lines.append(f"Preferred language: {language}")
+
+        # Returning-guest signal
+        if profile and profile.past_requests:
+            lines.append(f"Returning guest: yes ({len(profile.past_requests)} prior requests on file)")
+        else:
+            lines.append("Returning guest: no / first request this stay")
+
+        # Preferences
+        preferences = getattr(profile, "preferences", None) if profile else None
+        if preferences:
+            pref_lines = [f"  - {k}: {v}" for k, v in list(preferences.items())[:8]]
+            lines.append("Known preferences:")
+            lines.extend(pref_lines)
+
+        # Recent requests (last 5, chronological)
+        if profile and profile.past_requests:
+            recent = profile.past_requests[-5:]
+            lines.append("Recent requests (oldest → newest):")
+            for r in recent:
+                lines.append(f"  - {r[:160]}")
+
+        return "\n".join(lines)
+
+    # ---------------------------------------------------------------- policy --
 
     def _apply_policy(
         self,
