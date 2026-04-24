@@ -207,6 +207,35 @@ export default function TaskBoard() {
           color: #3e4e62;
           font-size: 14px;
         }
+
+        @media (max-width: 640px) {
+          .task-actions {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 16px;
+          }
+          
+          .assign-box {
+            width: 100%;
+          }
+
+          .task-select {
+            width: 100%;
+          }
+          
+          .complete-btn {
+            width: 100%;
+          }
+
+          .filter-row {
+            justify-content: center;
+          }
+          
+          .filter-btn {
+            flex: 1;
+            text-align: center;
+          }
+        }
       `}</style>
 
       <div className="board-header">

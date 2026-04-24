@@ -659,7 +659,7 @@ function FilterChip({ label, count, isActive, color, bg, border, onClick }) {
 // ─── LEGEND ────────────────────────────────────────────────────────────────
 function Legend() {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "8px 20px 0", flexWrap: "wrap" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 14, padding: 0, flexWrap: "wrap" }}>
       {STATUS_KEYS.map(k => {
         const s = STATUS[k];
         return (
@@ -779,9 +779,9 @@ export default function HotelMap({ embedded = false }) {
         onMouseMove={handleMouseMove}
       >
         {/* ── Top bar ── */}
-        <div style={{
+        <div className="top-bar-container" style={{
           display: "flex", alignItems: "center", gap: 12,
-          padding: "0 20px", height: 48,
+          padding: "12px 20px", minHeight: 48, flexWrap: "wrap",
           background: "var(--bg1)", borderBottom: "1px solid var(--border)",
           flexShrink: 0,
         }}>

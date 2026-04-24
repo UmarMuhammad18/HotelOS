@@ -45,6 +45,30 @@ export default function GuestProfile() {
 
   return (
     <div style={{ maxWidth: 800, margin: '0 auto' }}>
+      <style>{`
+        .guest-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 20px;
+        }
+        .guest-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 20px;
+          margin-bottom: 24px;
+        }
+        @media (max-width: 640px) {
+          .guest-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 12px;
+          }
+          .guest-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+      `}</style>
       <h1 style={{ fontSize: 24, fontFamily: "'Space Mono', monospace", color: '#e8eaf0', marginBottom: 20 }}>
         Guest Profile
       </h1>
@@ -54,7 +78,7 @@ export default function GuestProfile() {
         borderRadius: 16,
         padding: 24,
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <div className="guest-header">
           <div>
             <div style={{ fontSize: 20, fontWeight: 600, color: '#e8eaf0' }}>{guest.name}</div>
             <div style={{ fontSize: 13, color: '#8892a4' }}>Room {guest.room} • {guest.status}</div>
@@ -67,11 +91,11 @@ export default function GuestProfile() {
             fontSize: 11,
             color: '#f5a623',
           }}>
-            {guest.totalSpent} total spent
+            ${guest.totalSpent} total spent
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
+        <div className="guest-grid">
           <div>
             <div style={{ fontSize: 11, fontFamily: "'Space Mono', monospace", color: '#f5a623', marginBottom: 8 }}>STAY DETAILS</div>
             <div style={{ fontSize: 12, color: '#8892a4' }}>Check-in: {guest.checkIn}</div>
