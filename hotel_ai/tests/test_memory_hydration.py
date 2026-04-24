@@ -195,3 +195,37 @@ def test_past_requests_include_the_current_event_after_build(tmp_path, stay):
     # Second call's context must mention the first call's text.
     assert "first report" in user_second
     assert "Returning guest: yes" in user_second
+
+
+def test_build_plan_seeds_profile_for_transient_guest(tmp_path, stay):
+    """Regression pin for the memory-persistence fix.
+
+    Prior to this fix, `record_request` silently no-opped for any guest that
+    didn't already have a stored profile, because the API layer never seeded
+    one from StayContext. The smoke-test symptom was `data/guest_memory.json`
+    sitting at `{}` forever even as events flowed.
+
+    The contract we want to pin is behavioural, not implementation-specific:
+    after a successful `build_plan`, the guest in the stay MUST have a
+    persisted profile, AND that profile's `past_requests` MUST include the
+    current event's text. It doesn't matter whether the orchestrator seeds
+    the profile itself or whether a future refactor moves that duty elsewhere
+    — from the caller's perspective, memory must be real after build_plan.
+    """
+    llm = RecordingLLM(_CANNED)
+    orch, memory = _build_orch(tmp_path, llm)
+
+    # Pre-condition: no profile exists for this guest yet.
+    assert memory.get_profile("g-ada") is None
+
+    orch.build_plan(_event("My AC isn't cooling"), stay)
+
+    # Post-condition 1: a profile now exists on disk.
+    profile = memory.get_profile("g-ada")
+    assert profile is not None
+    assert profile.full_name == "Ada Lovelace"
+
+    # Post-condition 2: record_request actually wrote the current event.
+    # (Without the seeding fix, past_requests stays empty.)
+    assert len(profile.past_requests) >= 1
+    assert any("cooling" in r.lower() for r in profile.past_requests)
