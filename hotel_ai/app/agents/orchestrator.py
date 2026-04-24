@@ -44,6 +44,7 @@ from app.models import (
     AgentEventType,
     Department,
     DepartmentAction,
+    GuestReply,
     HotelEvent,
     MemoryUpdate,
     Plan,
@@ -97,6 +98,45 @@ Use the Guest context block to reason:
   them without asking again.
 - A first-time guest with a novel request is a 'normal' unless the text
   itself signals urgency.
+"""
+
+
+# --- Guest-reply localization -------------------------------------------------
+
+# Maps ISO-ish language codes to the human-readable name we give the LLM.
+# This is deliberately tiny — any code not listed here is still passed to
+# the LLM verbatim ("please translate into <whatever the PMS stored>"), which
+# Groq/llama handles gracefully for most major languages.
+_LANGUAGE_NAMES = {
+    "en": "English",
+    "es": "Spanish",
+    "fr": "French",
+    "de": "German",
+    "it": "Italian",
+    "pt": "Portuguese",
+    "nl": "Dutch",
+    "pl": "Polish",
+    "tr": "Turkish",
+    "ru": "Russian",
+    "ar": "Arabic",
+    "zh": "Chinese (Simplified)",
+    "ja": "Japanese",
+    "ko": "Korean",
+    "hi": "Hindi",
+}
+
+# Any of these codes (case-insensitive) means "no translation needed".
+_ENGLISH_ALIASES = {"en", "en-us", "en-gb", "en-au", "eng", ""}
+
+_TRANSLATE_SYSTEM = """\
+You are a translation layer for short guest-facing hotel replies.
+
+Rules:
+- Translate ONLY into the requested target language.
+- Preserve room numbers, times, and named services exactly.
+- Keep the tone polite and professional.
+- Keep it to 1-3 sentences — never add a greeting, signature, or explanation.
+- Output ONLY the translated text. No quotes, no prefaces, no language tags.
 """
 
 
@@ -192,7 +232,11 @@ class Orchestrator:
                 first_guest_reply = fragment.guest_reply
             plan.memory_updates.extend(fragment.memory_updates)
 
-        plan.guest_reply = first_guest_reply
+        # 4b. Localize the reply into the guest's preferred language, if known.
+        plan.guest_reply = self._localize_reply(
+            first_guest_reply,
+            getattr(stay.guest, "language", None),
+        )
 
         # 5. Update memory (Python owns this side of the stack).
         self.memory.record_request(stay.guest.guest_id, event.text)
@@ -244,6 +288,65 @@ class Orchestrator:
                 "intent": "unclassified",
                 "sentiment": "neutral",
             }
+
+    # --------------------------------------------------- reply localization --
+
+    def _localize_reply(
+        self,
+        reply: GuestReply | None,
+        target_language: str | None,
+    ) -> GuestReply | None:
+        """Translate a guest-facing reply into the guest's preferred language.
+
+        Contract:
+          - reply is None                          -> return None (no reply to send)
+          - target_language missing / English-ish  -> return reply unchanged
+          - translation succeeds                   -> new GuestReply with
+            translated message AND locale=<target code>
+          - translation fails / returns empty      -> return the ORIGINAL English
+            reply so the guest still hears back. Locale stays 'en' so the UI
+            doesn't claim to be sending a language it isn't.
+
+        We intentionally intercept at the orchestrator layer (rather than
+        inside each department agent) so agents stay focused on their domain
+        and every reply is localized consistently.
+        """
+        if reply is None:
+            return None
+        if not target_language:
+            return reply
+
+        target = target_language.strip().lower()
+        if target in _ENGLISH_ALIASES:
+            return reply
+
+        language_name = _LANGUAGE_NAMES.get(target, target_language)
+
+        try:
+            translated = self.llm.reply_text(
+                system=_TRANSLATE_SYSTEM,
+                user=(
+                    f"Target language: {language_name}\n\n"
+                    f"Reply to translate:\n{reply.message}"
+                ),
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.warning(
+                "translate_failed",
+                extra={"target": target, "error": str(exc)},
+            )
+            # Fall back to the English original. Force locale="en" so the UI
+            # doesn't claim a language we couldn't actually deliver (the
+            # agent may have optimistically set locale from the guest's
+            # preference when building the reply).
+            return GuestReply(message=reply.message, locale="en")
+
+        translated = (translated or "").strip()
+        if not translated:
+            log.warning("translate_empty", extra={"target": target})
+            return GuestReply(message=reply.message, locale="en")
+
+        return GuestReply(message=translated, locale=target)
 
     # --------------------------------------------------- memory hydration --
 
