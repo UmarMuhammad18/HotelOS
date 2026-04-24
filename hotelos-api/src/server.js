@@ -15,6 +15,7 @@ const bcrypt = require('bcryptjs');
 const Stripe = require('stripe');
 const { getDb, persist, all, getOne } = require('./db');
 const orchestrator = require('./agents/orchestrator');
+const pythonAdvisor = require('./agents/pythonAdvisor');
 const simulation = require('./services/simulation');
 const openclaw = require('./services/openclaw');
 
@@ -420,6 +421,21 @@ app.post('/api/agents/decide', async (req, res) => {
   res.json({ status: 'queued' });
 });
 
+/**
+ * Python advisor entry — Node passes a fully hydrated event+stay payload,
+ * Python returns a Plan, Node executes it (broadcast events, call tools,
+ * optional guest reply). See hotel_ai/docs/CONTRACT.md for the schema.
+ * Falls back to the keyword orchestrator if Python is unreachable.
+ */
+app.post('/api/agents/advise', async (req, res) => {
+  try {
+    const plan = await pythonAdvisor.processEvent(req.body);
+    res.json({ plan });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
 app.get('/api/agents/status', (req, res) => {
   res.json({ status: 'online', orchestrator: 'active' });
 });
@@ -539,7 +555,13 @@ getDb()
       broadcastAgentEvent: broadcastFeed,
       db: db
     });
-    
+
+    // Initialize Python advisor (keyword orchestrator stays as fallback)
+    pythonAdvisor.init({
+      broadcastAgentEvent: broadcastFeed,
+      fallback: orchestrator,
+    });
+
     // Initialize Simulation
     simulation.initSimulation({
       broadcastAgentEvent: broadcastFeed,
