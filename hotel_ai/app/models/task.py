@@ -1,4 +1,4 @@
-"""
+r"""
 Task, Department, Priority and TaskStatus models.
 
 A Task is the unit of work the AI creates and a department acts on. The
