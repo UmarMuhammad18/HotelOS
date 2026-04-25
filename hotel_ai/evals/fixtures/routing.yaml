@@ -1,0 +1,65 @@
+# Department-routing evals.
+#
+# These pin "the obvious right department gets dispatched". They're cheap to
+# write, easy to debug when they fail, and they catch the kind of regression
+# where a prompt change quietly bumps every request to "guest_relations".
+#
+# `agent_includes` is a non-strict membership check — extra agents are fine
+# as long as the expected one is present. If you specifically want to forbid
+# something (e.g., AC must NOT escalate to security on a routine ticket),
+# add `agent_excludes`.
+
+cases:
+  - id: towels_to_housekeeping
+    description: Routine amenity request → housekeeping.
+    guest_language: en
+    events:
+      - text: "Could I get two extra bath towels for room 412? Thanks."
+    expect:
+      agent_includes: [housekeeping]
+      agent_excludes: [security]
+      priority_at_most: high
+      min_actions: 1
+
+  - id: ac_to_maintenance
+    description: AC complaint → maintenance.
+    guest_language: en
+    events:
+      - text: "The AC in 412 isn't cooling, the room is uncomfortably warm."
+    expect:
+      agent_includes: [maintenance]
+      agent_excludes: [security]
+      priority_at_most: high
+
+  - id: late_checkout_to_front_desk
+    description: Stay-management request → front desk.
+    guest_language: en
+    events:
+      - text: "Hi, would it be possible to do a late checkout at 2pm tomorrow?"
+    expect:
+      agent_includes: [front_desk]
+      agent_excludes: [security, maintenance]
+      # 'high' is defensible (late checkout affects housekeeping turnover);
+      # we only really care about catching 'urgent' over-escalation here.
+      priority_at_most: high
+
+  - id: dinner_to_fnb
+    description: Food order → F&B.
+    guest_language: en
+    events:
+      - text: "Can I order a club sandwich and a sparkling water to room 412?"
+    expect:
+      agent_includes: [food_beverage]
+      agent_excludes: [security]
+      priority_at_most: normal
+
+  - id: noise_complaint_to_security_or_front_desk
+    description: Noise complaint should reach security OR front desk (either is acceptable).
+    guest_language: en
+    events:
+      - text: "The guests in the room next door are being extremely loud, it's after midnight."
+    expect:
+      # We don't pin which one — both are reasonable. Just ensure we didn't
+      # send maintenance / housekeeping / concierge for a midnight noise call.
+      agent_excludes: [maintenance, housekeeping, concierge]
+      min_actions: 1
