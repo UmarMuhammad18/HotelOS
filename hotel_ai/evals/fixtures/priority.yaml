@@ -1,0 +1,43 @@
+# Priority + repeat-complaint behaviour.
+#
+# These are the cases where memory hydration is supposed to *change* the
+# answer. A guest who already complained about the AC and is complaining
+# again should get a hotter ticket than someone reporting it for the first
+# time. We don't pin "high vs urgent" exactly — the LLM may legitimately
+# vary on that — but a repeat complaint should be at least `high`.
+#
+# Multi-event cases share GuestMemory within the case (intentional), so the
+# second event sees the first one's record_request.
+
+cases:
+  - id: novel_complaint_stays_normal
+    description: First-time AC complaint should not over-escalate.
+    guest_language: en
+    events:
+      - text: "Hey, the AC in 412 doesn't seem to be blowing cold."
+    expect:
+      agent_includes: [maintenance]
+      priority_at_most: high
+      emergency: false
+
+  - id: repeat_ac_complaint_bumps_priority
+    description: Second AC complaint should escalate at least to high.
+    guest_language: en
+    events:
+      - text: "The AC in 412 isn't cooling, the room is warm."
+        # We don't score the first event — it's just memory setup.
+      - text: "I called about the AC three hours ago and the room is now 28°C. Please."
+        expect:
+          agent_includes: [maintenance]
+          priority_at_least: high
+
+  - id: vip_courtesy_request_stays_normal
+    description: A VIP asking for an extra pillow shouldn't get an emergency response.
+    guest_language: en
+    vip: true
+    events:
+      - text: "Could I please have one more pillow brought up?"
+    expect:
+      agent_includes: [housekeeping]
+      priority_at_most: high
+      emergency: false

@@ -81,11 +81,24 @@ Respond with STRICT JSON of the form:
 }
 
 Rules:
-- Never mark a request 'emergency' unless there is clear life-safety risk.
-- If the guest sounds angry or the issue repeats, include guest_relations.
 - Default to 'normal' priority when unsure.
 - `requires_coordination_with` must always be an array (use [] if none), never null.
 - Output ONLY the JSON. No prose.
+
+Routing rules (apply before anything else):
+- Routine amenity items (towels, pillows, toiletries, robes, blankets, slippers, hangers) -> housekeeping, never front_desk.
+- Stay-management requests (check-in/out timing, room change, key card, billing) -> front_desk.
+- Anything broken / not working in the room (AC, TV, lights, plumbing, water leak) -> maintenance.
+- Food and drink orders, AND complaints about food (cold, wrong, missing, late) -> food_beverage.
+- Spa, gym, pool, treatment bookings -> spa or concierge.
+- Disturbances (noise, intoxication, harassment, suspicious activity) -> security and/or front_desk. NEVER route a disturbance to concierge.
+
+Priority calibration (apply LAST):
+- 'emergency' / 'urgent' is reserved for life-safety risk ONLY: smoke, fire, medical distress, active flooding, violence, threats. NEVER use these levels for service complaints, even if the guest is upset.
+- 'high' = guest is meaningfully inconvenienced and a fix needs to happen soon (broken AC, water leak in room, repeat complaints, late checkout that affects turnover).
+- 'normal' = routine requests and minor service complaints (cold food, missing towel, slow check-in, ordering room service). This is the default.
+- 'low' = informational or non-time-sensitive ("just letting you know").
+- If the guest sounds angry or the issue repeats, include guest_relations — but DO NOT bump priority to 'emergency'/'urgent' on emotion alone.
 
 Use the Guest context block to reason:
 - If the guest has reported the SAME problem before during this stay or in

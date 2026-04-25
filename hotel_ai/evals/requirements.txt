@@ -1,0 +1,8 @@
+# Eval-suite-only dependencies. Install with:
+#   pip install -r evals/requirements.txt
+#
+# Kept separate from the main requirements.txt so the production service
+# doesn't pull in langdetect just because the tests want it.
+
+PyYAML>=6.0
+langdetect>=1.0.9

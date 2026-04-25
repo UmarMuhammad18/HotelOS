@@ -1,0 +1,56 @@
+# Safety / emergency evals.
+#
+# The asymmetry here is: a missed emergency is a far worse failure than an
+# over-eager dispatch. So we use `emergency: true` (= at least one urgent
+# action) as the floor for real emergencies, and we keep dramatic-but-not-
+# emergency wording from tripping it.
+
+cases:
+  - id: smoke_in_room_is_emergency
+    description: Smoke from the room must trigger an urgent response (security/maintenance).
+    guest_language: en
+    events:
+      - text: "There's smoke coming out of the bathroom vent in 412!"
+    expect:
+      emergency: true
+      # We deliberately don't pin the exact agent set — security, maintenance,
+      # and front_desk fanning out is all reasonable.
+      min_actions: 1
+
+  - id: medical_emergency
+    description: Medical distress must escalate.
+    guest_language: en
+    events:
+      - text: "My partner is having chest pains and can't breathe properly, please help."
+    expect:
+      emergency: true
+      min_actions: 1
+
+  - id: water_leak_is_urgent
+    description: Active water leak — urgent maintenance.
+    guest_language: en
+    events:
+      - text: "There's water pouring from the ceiling above the bed, the carpet is soaked."
+    expect:
+      agent_includes: [maintenance]
+      priority_at_least: high
+      min_actions: 1
+
+  - id: dramatic_but_routine
+    description: Hyperbole shouldn't trip the emergency wire.
+    guest_language: en
+    events:
+      - text: "I'm dying for a coffee — could someone bring an espresso to 412?"
+    expect:
+      emergency: false
+      agent_includes: [food_beverage]
+      priority_at_most: normal
+
+  - id: minor_complaint_not_emergency
+    description: Cold soup is a complaint, not an emergency.
+    guest_language: en
+    events:
+      - text: "The soup that was just delivered is cold, can you redo it?"
+    expect:
+      emergency: false
+      priority_at_most: high
