@@ -33,6 +33,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 
 from app.config import get_settings
 from app.utils.logging import get_logger
+from app.llm.retry import RetryingLLMClient
 
 log = get_logger(__name__)
 
@@ -211,17 +212,17 @@ def build_llm() -> LLMClient:
         if not s.groq_api_key:
             log.warning("llm_provider_groq_but_no_key_using_fake")
             return FakeLLM()
-        return GroqLLM()
+        return RetryingLLMClient(GroqLLM())
     if provider == "gemini":
         if not s.gemini_api_key:
             log.warning("llm_provider_gemini_but_no_key_using_fake")
             return FakeLLM()
-        return GeminiLLM()
+        return RetryingLLMClient(GeminiLLM())
     if provider == "anthropic":
         if not s.anthropic_api_key:
             log.warning("llm_provider_anthropic_but_no_key_using_fake")
             return FakeLLM()
-        return AnthropicLLM()
+        return RetryingLLMClient(AnthropicLLM())
     if provider == "fake":
         return FakeLLM()
 
@@ -229,12 +230,12 @@ def build_llm() -> LLMClient:
     # then Anthropic, then Fake.
     if s.groq_api_key:
         log.info("llm_autoselect_groq")
-        return GroqLLM()
+        return RetryingLLMClient(GroqLLM())
     if s.gemini_api_key:
         log.info("llm_autoselect_gemini")
-        return GeminiLLM()
+        return RetryingLLMClient(GeminiLLM())
     if s.anthropic_api_key:
         log.info("llm_autoselect_anthropic")
-        return AnthropicLLM()
+        return RetryingLLMClient(AnthropicLLM())
     log.warning("no_llm_key_using_fake_llm")
     return FakeLLM()
