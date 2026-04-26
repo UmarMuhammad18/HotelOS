@@ -18,3 +18,5 @@ build/
 test_groq.py
 test_gemini.py
 payload.json
+evals/report.md
+evals/report.json

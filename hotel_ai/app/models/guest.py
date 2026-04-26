@@ -3,16 +3,28 @@ Guest-related domain models.
 
 Sensitive fields (accessibility, medical, emergency) are isolated here so we
 can reason about access control, logging redaction, and retention in one
-place. Never log a full GuestProfile object — use `GuestProfile.redacted()`.
+place. Never log a full GuestProfile — use `GuestProfile.redacted()`.
+
+Timestamp policy
+----------------
+All `datetime` fields are timezone-aware (UTC). `datetime.utcnow()` returns
+naive timestamps and is deprecated in Python 3.12+; we use
+`datetime.now(timezone.utc)` everywhere so cross-service comparisons and
+serialization are unambiguous.
 """
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from enum import Enum
 from typing import Optional
 
 from pydantic import BaseModel, Field
+
+
+def _utcnow() -> datetime:
+    """Module-local helper so we have one place to swap clocks in tests."""
+    return datetime.now(timezone.utc)
 
 
 class MobilityAid(str, Enum):
@@ -25,11 +37,13 @@ class MobilityAid(str, Enum):
 
 
 class AccessibilityNeeds(BaseModel):
-    """
-    Accessibility profile. Affects prioritisation and routing.
+    """Accessibility profile. Affects prioritisation and routing.
 
     Rule: if `registered_disability` is True, the orchestrator MUST copy
-    front desk and security on any emergency-category event for this guest.
+    front desk and security on any emergency-category event for this
+    guest, AND must add the accessibility agent for high-priority
+    service events where physical access matters (broken elevator,
+    room change, evacuation drill, etc).
     """
 
     registered_disability: bool = False
@@ -45,12 +59,7 @@ class AccessibilityNeeds(BaseModel):
 
 
 class EmergencyProfile(BaseModel):
-    """
-    Data the AI may use during emergencies. Kept minimal on purpose.
-
-    We deliberately do NOT store medical conditions in this service; the AI
-    only needs to know *that* assistance is required and whom to alert.
-    """
+    """Data the AI may use during emergencies. Kept minimal on purpose."""
 
     emergency_contact_name: Optional[str] = None
     emergency_contact_phone: Optional[str] = None
@@ -58,11 +67,10 @@ class EmergencyProfile(BaseModel):
 
 
 class GuestProfile(BaseModel):
-    """
-    Canonical guest record from the AI's point of view.
+    """Canonical guest record from the AI's point of view.
 
-    This is a *projection* of the PMS/CRM record — the backend team owns the
-    source of truth. We keep what the AI reasons over.
+    This is a *projection* of the PMS/CRM record — the backend team owns
+    the source of truth. We keep what the AI reasons over.
     """
 
     guest_id: str
@@ -79,11 +87,13 @@ class GuestProfile(BaseModel):
     preferences: dict = Field(default_factory=dict)
     past_requests: list[str] = Field(default_factory=list)
 
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
 
     def redacted(self) -> dict:
-        """Safe-to-log view — strips PII and sensitive accessibility detail."""
+        """Safe-to-log view — strips PII (name, contact) and sensitive
+        accessibility detail.
+        """
         return {
             "guest_id": self.guest_id,
             "vip": self.vip,
@@ -93,7 +103,7 @@ class GuestProfile(BaseModel):
 
 
 class StayContext(BaseModel):
-    """The current stay — everything the agents need to act without a PMS hit."""
+    """The current stay — everything agents need to act without a PMS hit."""
 
     guest: GuestProfile
     room_number: str
@@ -101,3 +111,7 @@ class StayContext(BaseModel):
     check_out: date
     reservation_id: str
     is_returning_guest: bool = False
+    # Hotel-local timezone — lets quiet-hours logic work even when the
+    # advisor service runs in a different TZ. Defaults to UTC for safety
+    # (so a missing field never silently activates quiet hours).
+    hotel_timezone: str = "UTC"

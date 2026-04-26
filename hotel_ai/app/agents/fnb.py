@@ -1,8 +1,4 @@
-"""
-Food & Beverage / Room Service agent.
-
-Emits `assignTask` with taskType "room_service" so F&B staff pick it up.
-"""
+"""Food & Beverage / Room Service agent."""
 
 from __future__ import annotations
 
@@ -12,7 +8,6 @@ from app.models import (
     AgentEventType,
     Department,
     DepartmentAction,
-    GuestReply,
     StayContext,
     ToolCall,
 )
@@ -44,11 +39,11 @@ class FoodBeverageAgent(BaseAgent):
                 self._decision("Sending order to kitchen"),
             ],
             tool_calls=[tool],
-            guest_reply=GuestReply(
-                message=(
+            guest_reply=self._reply(
+                (
                     f"Your order has been sent to Room Service: {action.summary}. "
                     "We'll let you know when it's on its way."
                 ),
-                locale=stay.guest.language,
+                stay,
             ),
         )

@@ -1,18 +1,13 @@
 """
-Phase 2b — memory hydration tests.
+Memory hydration into the LLM prompt.
 
-Pins the behaviour that when the orchestrator classifies an event, the LLM
-receives a "Guest context" block assembled from GuestMemory. The LLM is
-free to ignore that context, but:
-
-  1. The context block itself must appear in the user message.
-  2. It must include the guest's recent past_requests when they exist.
-  3. It must surface VIP / accessibility / language flags when set.
-  4. A first-time guest must still get a context block (empty-history case).
-
-We use a `RecordingLLM` double so we can assert on the exact user payload
-the orchestrator hands to the LLM, without taking a dependency on a real
-provider.
+When the orchestrator classifies an event, the LLM receives a "Guest
+context" block assembled from GuestMemory. We pin that:
+  1. The block appears in the user message.
+  2. It includes recent past_requests when present.
+  3. It surfaces VIP / accessibility / language flags.
+  4. A first-time guest still gets a context block.
+  5. After build_plan, the current event lands in memory for next time.
 """
 
 from __future__ import annotations
@@ -22,7 +17,8 @@ from datetime import date
 import pytest
 
 from app.agents.orchestrator import Orchestrator
-from app.memory.guest_memory import GuestMemory
+from app.config import get_settings
+from app.memory.guest_memory import GuestMemory, encode_request
 from app.memory.store import JSONFileStore
 from app.models import (
     AccessibilityNeeds,
@@ -33,8 +29,15 @@ from app.models import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _clean_settings():
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
+
+
 class RecordingLLM:
-    """LLM double that records the last user payload and returns canned JSON."""
+    """LLM double that records the last user payload."""
 
     def __init__(self, canned: dict) -> None:
         self.canned = canned
@@ -48,6 +51,9 @@ class RecordingLLM:
 
     def reply_text(self, system: str, user: str) -> str:  # noqa: ARG002
         return "ok"
+
+    def ping(self) -> bool:
+        return True
 
 
 _CANNED = {
@@ -99,7 +105,6 @@ def test_context_block_is_sent_to_llm(tmp_path, stay):
     assert llm.last_user is not None
     assert "Guest context:" in llm.last_user
     assert "Current event" in llm.last_user
-    # The text of the current event should follow the context block.
     assert "My AC still isn't cooling" in llm.last_user
 
 
@@ -107,24 +112,21 @@ def test_first_time_guest_context_is_marked(tmp_path, stay):
     llm = RecordingLLM(_CANNED)
     orch, _ = _build_orch(tmp_path, llm)
     orch.build_plan(_event(), stay)
-
-    # With no profile seeded, the context should explicitly say this is
-    # a first request / non-returning guest.
     assert "Returning guest: no" in (llm.last_user or "")
 
 
 def test_returning_guest_past_requests_are_in_context(tmp_path, stay):
-    """Seed past_requests on the guest profile and confirm they appear."""
+    """Seed past_requests using the new pipe-encoded format and confirm
+    they're rendered in the prompt."""
     llm = RecordingLLM(_CANNED)
     orch, memory = _build_orch(tmp_path, llm)
 
-    # Seed a profile with prior AC complaints.
     profile = GuestProfile(
         guest_id="g-ada",
         full_name="Ada Lovelace",
         past_requests=[
-            "AC making loud noise",
-            "AC not cooling earlier today",
+            encode_request("maintenance_issue", "AC making loud noise"),
+            encode_request("maintenance_issue", "AC not cooling earlier today"),
         ],
         preferences={"pillow": "foam", "quiet_room": True},
     )
@@ -138,12 +140,10 @@ def test_returning_guest_past_requests_are_in_context(tmp_path, stay):
     assert "Known preferences" in user
     assert "pillow" in user
     assert "foam" in user
-    # Returning guest flag should flip on.
     assert "Returning guest: yes" in user
 
 
 def test_vip_flag_and_accessibility_in_context(tmp_path):
-    """VIP + accessibility needs must show up in the flags line."""
     llm = RecordingLLM(_CANNED)
     stay = StayContext(
         guest=GuestProfile(
@@ -161,7 +161,6 @@ def test_vip_flag_and_accessibility_in_context(tmp_path):
         reservation_id="r-vip",
     )
     orch, _ = _build_orch(tmp_path, llm)
-
     event = HotelEvent(
         channel=EventChannel.GUEST_CHAT,
         reservation_id="r-vip",
@@ -178,12 +177,9 @@ def test_vip_flag_and_accessibility_in_context(tmp_path):
 
 
 def test_past_requests_include_the_current_event_after_build(tmp_path, stay):
-    """After build_plan completes, the current event should be recorded so
-    the NEXT event sees it in its context block."""
     llm = RecordingLLM(_CANNED)
     orch, memory = _build_orch(tmp_path, llm)
 
-    # Seed a bare profile first so record_request has somewhere to write.
     memory.upsert_from_reservation(
         GuestProfile(guest_id="g-ada", full_name="Ada Lovelace")
     )
@@ -192,40 +188,21 @@ def test_past_requests_include_the_current_event_after_build(tmp_path, stay):
     orch.build_plan(_event("AC still not cooling — second report"), stay)
 
     user_second = llm.last_user or ""
-    # Second call's context must mention the first call's text.
     assert "first report" in user_second
     assert "Returning guest: yes" in user_second
 
 
 def test_build_plan_seeds_profile_for_transient_guest(tmp_path, stay):
-    """Regression pin for the memory-persistence fix.
-
-    Prior to this fix, `record_request` silently no-opped for any guest that
-    didn't already have a stored profile, because the API layer never seeded
-    one from StayContext. The smoke-test symptom was `data/guest_memory.json`
-    sitting at `{}` forever even as events flowed.
-
-    The contract we want to pin is behavioural, not implementation-specific:
-    after a successful `build_plan`, the guest in the stay MUST have a
-    persisted profile, AND that profile's `past_requests` MUST include the
-    current event's text. It doesn't matter whether the orchestrator seeds
-    the profile itself or whether a future refactor moves that duty elsewhere
-    — from the caller's perspective, memory must be real after build_plan.
-    """
+    """The orchestrator must seed a profile for a guest that doesn't
+    have one yet so subsequent record_request calls actually persist."""
     llm = RecordingLLM(_CANNED)
     orch, memory = _build_orch(tmp_path, llm)
 
-    # Pre-condition: no profile exists for this guest yet.
     assert memory.get_profile("g-ada") is None
-
     orch.build_plan(_event("My AC isn't cooling"), stay)
 
-    # Post-condition 1: a profile now exists on disk.
     profile = memory.get_profile("g-ada")
     assert profile is not None
     assert profile.full_name == "Ada Lovelace"
-
-    # Post-condition 2: record_request actually wrote the current event.
-    # (Without the seeding fix, past_requests stays empty.)
     assert len(profile.past_requests) >= 1
     assert any("cooling" in r.lower() for r in profile.past_requests)

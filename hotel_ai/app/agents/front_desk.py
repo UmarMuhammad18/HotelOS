@@ -8,7 +8,6 @@ from app.models import (
     AgentEventType,
     Department,
     DepartmentAction,
-    GuestReply,
     StayContext,
     ToolCall,
 )
@@ -40,11 +39,11 @@ class FrontDeskAgent(BaseAgent):
                 self._decision("Assigning to front desk"),
             ],
             tool_calls=[tool],
-            guest_reply=GuestReply(
-                message=(
+            guest_reply=self._reply(
+                (
                     f"Front Desk has your request: {action.summary.lower()}. "
                     "They'll follow up shortly."
                 ),
-                locale=stay.guest.language,
+                stay,
             ),
         )

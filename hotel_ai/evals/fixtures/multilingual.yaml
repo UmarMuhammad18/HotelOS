@@ -1,0 +1,53 @@
+# Multilingual reply evals.
+#
+# These specifically guard the regression that prompted Phase 3a: during the
+# Phase 2c smoke test a Spanish translation came back with the department
+# names also translated ("Mantenimiento" instead of "Housekeeping"), which
+# would have broken the Node side's routing. The unit-test doubles couldn't
+# catch that — they only saw a recorded prompt, not real LLM output.
+#
+# So here we DO call a real LLM and we DO check both:
+#   * The reply is plausibly in the target language (langdetect)
+#   * The locale code matches
+#   * Department actions remain in their canonical English form
+
+cases:
+  - id: spanish_towel_request
+    description: Spanish guest gets a Spanish reply, but agents stay English.
+    guest_language: es
+    events:
+      - text: "Hola, ¿podría traerme dos toallas más a la habitación 412?"
+    expect:
+      agent_includes: [housekeeping]
+      reply_locale: es
+      reply_in_language: es
+
+  - id: french_late_checkout
+    description: French guest, French reply, English agents.
+    guest_language: fr
+    events:
+      - text: "Bonjour, est-il possible d'avoir un départ tardif demain à 14h?"
+    expect:
+      agent_includes: [front_desk]
+      reply_locale: fr
+      reply_in_language: fr
+
+  - id: german_ac_complaint
+    description: German guest, German reply, maintenance dispatch unchanged.
+    guest_language: de
+    events:
+      - text: "Die Klimaanlage in Zimmer 412 funktioniert nicht, es ist sehr warm."
+    expect:
+      agent_includes: [maintenance]
+      reply_locale: de
+      reply_in_language: de
+
+  - id: english_guest_no_translation
+    description: English guest gets English reply, locale stays en.
+    guest_language: en
+    events:
+      - text: "Could I get extra towels in 412 please?"
+    expect:
+      agent_includes: [housekeeping]
+      reply_locale: en
+      reply_in_language: en

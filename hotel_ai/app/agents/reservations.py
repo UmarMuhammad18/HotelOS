@@ -1,4 +1,11 @@
-"""Concierge agent — recommendations, bookings, transport."""
+"""
+Reservations agent — extending stays, room changes, cancellations, future bookings.
+
+Anything that touches the PMS reservation record routes here. We never
+modify the reservation directly — that's a human + PMS API job. We
+create a coordination task and reply with a "we're on it" message so
+the guest isn't left wondering.
+"""
 
 from __future__ import annotations
 
@@ -13,21 +20,21 @@ from app.models import (
 )
 
 
-class ConciergeAgent(BaseAgent):
-    department = Department.CONCIERGE
+class ReservationsAgent(BaseAgent):
+    department = Department.RESERVATIONS
 
     def handle(self, action: DepartmentAction, stay: StayContext) -> PlanFragment:
         tool = ToolCall(
             tool="assignTask",
             args={
-                "taskType": f"concierge: {action.summary}",
+                "taskType": f"reservations: {action.summary}",
                 "roomNumber": stay.room_number,
                 "priority": action.priority.value,
             },
             broadcast_on_success=AgentEvent(
                 agent=self.display_name,
                 type=AgentEventType.EXECUTION,
-                message=f"Concierge task assigned for room {stay.room_number}",
+                message=f"Reservations task created for room {stay.room_number}",
                 details=action.details,
                 priority=action.priority.value,
                 room=stay.room_number,
@@ -35,14 +42,18 @@ class ConciergeAgent(BaseAgent):
         )
         return PlanFragment(
             events=[
-                self._thought(f"Concierge request: {action.summary}", action.details),
-                self._decision("Assigning to concierge team"),
+                self._thought(
+                    f"Reservation change request: {action.summary}",
+                    action.details,
+                ),
+                self._decision("Routing to Reservations for PMS update"),
             ],
             tool_calls=[tool],
             guest_reply=self._reply(
                 (
-                    f"Our concierge team is on your request: {action.summary.lower()}. "
-                    "They'll follow up with details shortly."
+                    f"Our reservations team is looking into your request — "
+                    f"{action.summary.lower()}. They'll come back to you with "
+                    "confirmation shortly."
                 ),
                 stay,
             ),

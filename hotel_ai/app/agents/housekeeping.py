@@ -1,9 +1,4 @@
-"""
-Housekeeping agent.
-
-Emits an `assignTask` tool call matching the existing
-hotelos-api/src/agents/tools.js::assignTask({ taskType, roomNumber, priority }).
-"""
+"""Housekeeping agent."""
 
 from __future__ import annotations
 
@@ -13,7 +8,6 @@ from app.models import (
     AgentEventType,
     Department,
     DepartmentAction,
-    GuestReply,
     StayContext,
     ToolCall,
 )
@@ -50,11 +44,11 @@ class HousekeepingAgent(BaseAgent):
                 ),
             ],
             tool_calls=[tool],
-            guest_reply=GuestReply(
-                message=(
+            guest_reply=self._reply(
+                (
                     f"Your request '{action.summary.lower()}' has been sent to "
                     f"Housekeeping. Someone will be at room {stay.room_number} shortly."
                 ),
-                locale=stay.guest.language,
+                stay,
             ),
         )

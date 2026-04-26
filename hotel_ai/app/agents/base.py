@@ -1,20 +1,11 @@
-"""
-BaseAgent — common shape for all department agents in the advisor service.
-
-Agents no longer publish tasks or send notifications. They return a
-`PlanFragment` that the Orchestrator merges into the final `Plan` it
-hands back to Node. Node executes everything.
-
-Each agent has a `display_name` — the string the dashboard shows in its
-ActivityFeed. These MUST match what the frontend renders (see
-hotelos-api/BACKEND_API.md and the CRA `AgentFeed` component).
-"""
+"""BaseAgent — common shape for all department agents."""
 
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
+from app.agents.localize import localized_reply
 from app.llm.client import LLMClient
 from app.models import (
     AgentEvent,
@@ -28,23 +19,22 @@ from app.models import (
 )
 
 
-# --- Display name mapping -----------------------------------------------------
-# Kept here so every agent sees the same truth, and Orchestrator broadcasts
-# match. Extend this when you add a new department.
+# Display names shown in the dashboard ActivityFeed. Extend when adding
+# departments.
 DISPLAY_NAME: dict[Department, str] = {
     Department.FRONT_DESK: "Front Desk AI",
     Department.HOUSEKEEPING: "Housekeeping AI",
     Department.CONCIERGE: "Concierge AI",
     Department.MAINTENANCE: "Maintenance AI",
     Department.FOOD_BEVERAGE: "Room Service AI",
-    Department.GUEST_RELATIONS: "Guest Experience",   # matches existing Node tool
+    Department.GUEST_RELATIONS: "Guest Experience",
     Department.SECURITY: "Security AI",
     Department.ACCESSIBILITY: "Accessibility AI",
     Department.REVENUE: "Revenue AI",
     Department.RESERVATIONS: "Reservations AI",
     Department.SPA: "Spa AI",
-    Department.LAUNDRY: "Housekeeping AI",            # laundry piggybacks in MVP
-    Department.VALET: "Concierge AI",                 # valet piggybacks in MVP
+    Department.LAUNDRY: "Housekeeping AI",
+    Department.VALET: "Concierge AI",
 }
 
 
@@ -71,7 +61,7 @@ class BaseAgent(ABC):
     def handle(self, action: DepartmentAction, stay: StayContext) -> PlanFragment:
         """Produce a fragment of the overall Plan."""
 
-    # --- helpers subclasses can reuse --------------------------------------
+    # --- helpers --------------------------------------------------
 
     def _thought(self, message: str, details: str = "") -> AgentEvent:
         return AgentEvent(
@@ -104,3 +94,7 @@ class BaseAgent(ABC):
             message=message,
             details=details,
         )
+
+    def _reply(self, english_message: str, stay: StayContext) -> GuestReply:
+        """Render a guest reply in the guest's preferred language."""
+        return localized_reply(self.llm, english_message, stay.guest.language)

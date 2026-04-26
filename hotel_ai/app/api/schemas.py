@@ -1,9 +1,4 @@
-"""
-HTTP request/response schemas for the advisor service.
-
-This service no longer dispatches tasks or sends notifications itself.
-Every endpoint returns a `Plan` describing what Node should do.
-"""
+"""HTTP request/response schemas for the advisor service."""
 
 from __future__ import annotations
 
@@ -18,7 +13,6 @@ from app.models import (
 
 
 class AdviseRequest(BaseModel):
-    """Node calls this for every guest/system event."""
     event: HotelEvent
     stay: StayContext
 
@@ -28,9 +22,8 @@ class AdviseResponse(BaseModel):
 
 
 class TaskStatusAdviseRequest(BaseModel):
-    """Node asks for the right guest-facing copy when a task moves."""
     task_id: str
-    status: str                 # "pending" | "assigned" | "in_progress" | "completed" | "cancelled"
+    status: str
     stay: StayContext
     note: str | None = None
 
@@ -40,9 +33,8 @@ class TaskStatusAdviseResponse(BaseModel):
 
 
 class EmergencyAdviseRequest(BaseModel):
-    """Hard emergency entry — panic button, smoke alarm, fall sensor."""
     stay: StayContext
-    source: str                 # "panic_button" | "smoke_detector" | ...
+    source: str
     details: str
 
 
@@ -56,3 +48,28 @@ class UpsertGuestRequest(BaseModel):
 
 class GuestMemoryResponse(BaseModel):
     profile: GuestProfile | None
+
+
+class ForgetGuestResponse(BaseModel):
+    """Result of a GDPR right-to-erasure request."""
+    guest_id: str
+    deleted: bool   # False if the guest had no profile to delete
+
+
+class StaySummaryResponse(BaseModel):
+    """Deterministic one-paragraph summary of what we know about the guest."""
+    guest_id: str
+    summary: str
+
+
+class DeepHealthResponse(BaseModel):
+    """`/v1/health/deep` — also pings the LLM provider."""
+    status: str          # "ok" | "degraded"
+    llm_reachable: bool
+    timestamp: int
+
+
+class WebhookTestResponse(BaseModel):
+    """`/v1/webhooks/test` — confirms Node→Python connectivity + auth."""
+    received: bool
+    echo: str

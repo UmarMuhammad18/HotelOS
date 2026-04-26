@@ -1,9 +1,4 @@
-"""
-Maintenance agent.
-
-Emits a `createMaintenanceTicket` tool call matching
-hotelos-api/src/agents/tools.js::createMaintenanceTicket({ roomNumber, issueDescription }).
-"""
+"""Maintenance agent."""
 
 from __future__ import annotations
 
@@ -13,7 +8,6 @@ from app.models import (
     AgentEventType,
     Department,
     DepartmentAction,
-    GuestReply,
     StayContext,
     ToolCall,
 )
@@ -48,12 +42,12 @@ class MaintenanceAgent(BaseAgent):
                 self._decision(f"Opening a {action.priority.value}-priority ticket"),
             ],
             tool_calls=[tool],
-            guest_reply=GuestReply(
-                message=(
+            guest_reply=self._reply(
+                (
                     f"Maintenance has been notified about: {action.summary.lower()}. "
                     f"A technician will be at room {stay.room_number} as soon as possible. "
                     "We're sorry for the inconvenience."
                 ),
-                locale=stay.guest.language,
+                stay,
             ),
         )
