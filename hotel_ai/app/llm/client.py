@@ -3,46 +3,50 @@ Thin LLM client wrapper.
 
 Why wrap the SDK
 ----------------
-1. We want to swap providers or models without touching agents.
-2. We want a single place to enforce timeouts, retries, and JSON parsing.
-3. We want a `FakeLLM` for tests so we don't hit the network.
+1. Swap providers or models without touching agents.
+2. Single place to enforce timeouts, retries, JSON parsing.
+3. `FakeLLM` for tests so we don't hit the network.
 
 Agents call `LLMClient.classify_json(...)` or `LLMClient.reply_text(...)`;
 they never see raw SDK objects.
 
-Supported providers
--------------------
-- "groq"     — Groq-hosted Llama/Mixtral (free tier, no card, global).
-- "gemini"   — Google Gemini via google-generativeai (free tier, region-limited).
-- "anthropic"— Anthropic Claude via anthropic SDK.
-- "fake"     — Deterministic stub for tests / offline dev.
+Concurrency model
+-----------------
+The protocol is intentionally synchronous. Routes dispatch the
+orchestrator (which calls these clients) via `asyncio.to_thread` so the
+event loop is never blocked by an LLM round-trip. This keeps every
+agent, the orchestrator, and the test suite simple — only the routes
+layer cares about async concerns.
 
-Selection precedence (when LLM_PROVIDER is unset):
-    GROQ_API_KEY       → GroqLLM
-    GEMINI_API_KEY     → GeminiLLM
-    ANTHROPIC_API_KEY  → AnthropicLLM
-    nothing set        → FakeLLM
+Health-check
+------------
+Every client implements `ping()`, used by `/v1/health/deep`. The ping
+issues a tiny prompt and returns True if the provider responds without
+error. Use this in a load balancer healthcheck if you want to fail
+over when the LLM goes down.
 """
 
 from __future__ import annotations
 
+import copy
 import json
 from typing import Protocol
 
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from app.config import get_settings
+from app.llm.retry import RetryingLLMClient
 from app.utils.logging import get_logger
 
 log = get_logger(__name__)
 
+
 # Default model per provider. Override via LLM_MODEL env var.
-# - Groq:    llama-3.1-8b-instant is fast, cheap, and plenty for classification.
-#            For better reasoning try LLM_MODEL=llama-3.3-70b-versatile.
-# - Gemini:  gemini-2.0-flash is the current GA flash model.
-# - Anthropic: claude-sonnet-4-6 is our quality target.
+# - Groq: 70b is more reliable for strict-JSON than 8b. Both free-tier.
+# - Gemini: 2.0-flash is the current GA flash model.
+# - Anthropic: Claude Sonnet 4.6 is our quality target.
 _DEFAULT_MODELS = {
-    "groq": "llama-3.1-8b-instant",
+    "groq": "llama-3.3-70b-versatile",
     "gemini": "gemini-2.0-flash",
     "anthropic": "claude-sonnet-4-6",
 }
@@ -51,6 +55,7 @@ _DEFAULT_MODELS = {
 class LLMClient(Protocol):
     def classify_json(self, system: str, user: str) -> dict: ...
     def reply_text(self, system: str, user: str) -> str: ...
+    def ping(self) -> bool: ...
 
 
 def _extract_json(raw: str) -> dict:
@@ -65,11 +70,11 @@ def _extract_json(raw: str) -> dict:
         raise
 
 
-class AnthropicLLM:
-    """Production LLM client. Uses the Anthropic Messages API."""
+# --- Anthropic ---------------------------------------------------------------
 
+
+class AnthropicLLM:
     def __init__(self) -> None:
-        # Import inside to keep anthropic optional at runtime.
         from anthropic import Anthropic
 
         s = get_settings()
@@ -92,18 +97,19 @@ class AnthropicLLM:
     def reply_text(self, system: str, user: str) -> str:
         return self._complete(system=system, user=user)
 
+    def ping(self) -> bool:
+        try:
+            self._complete(system="You are a healthcheck.", user="ping", max_tokens=8)
+            return True
+        except Exception as e:  # noqa: BLE001
+            log.warning("anthropic_ping_failed", extra={"error": str(e)})
+            return False
+
+
+# --- Gemini ------------------------------------------------------------------
+
 
 class GeminiLLM:
-    """
-    Production LLM client using Google Gemini.
-
-    Uses the free tier of `gemini-1.5-flash` by default — generous daily
-    quota, no credit card required. Sign up at https://aistudio.google.com/apikey.
-
-    JSON mode is requested via `response_mime_type="application/json"` so
-    Gemini returns strict JSON for `classify_json`.
-    """
-
     def __init__(self) -> None:
         import google.generativeai as genai
 
@@ -123,7 +129,6 @@ class GeminiLLM:
             generation_config=generation_config or None,
         )
         response = model.generate_content(user)
-        # `response.text` raises if the response was blocked — let retry handle it.
         return response.text or ""
 
     def classify_json(self, system: str, user: str) -> dict:
@@ -133,19 +138,20 @@ class GeminiLLM:
     def reply_text(self, system: str, user: str) -> str:
         return self._complete(system=system, user=user, json_mode=False)
 
+    def ping(self) -> bool:
+        try:
+            self._complete(system="You are a healthcheck.", user="ping")
+            return True
+        except Exception as e:  # noqa: BLE001
+            log.warning("gemini_ping_failed", extra={"error": str(e)})
+            return False
+
+
+# --- Groq --------------------------------------------------------------------
+
 
 class GroqLLM:
-    """
-    Production LLM client using Groq's hosted Llama/Mixtral models.
-
-    Why Groq
-    --------
-    - Free tier is genuinely free (no card) and globally available.
-    - Inference is fast (<1s for 8b models) because Groq runs custom silicon.
-    - OpenAI-compatible chat-completions API — swap in with minimal ceremony.
-
-    Sign up at https://console.groq.com/keys for an API key.
-    """
+    """Groq-hosted Llama. Free-tier, fast, OpenAI-compatible."""
 
     def __init__(self) -> None:
         from groq import Groq
@@ -182,59 +188,77 @@ class GroqLLM:
     def reply_text(self, system: str, user: str) -> str:
         return self._complete(system=system, user=user, json_mode=False)
 
+    def ping(self) -> bool:
+        try:
+            self._complete(
+                system="You are a healthcheck.",
+                user="ping",
+                max_tokens=8,
+            )
+            return True
+        except Exception as e:  # noqa: BLE001
+            log.warning("groq_ping_failed", extra={"error": str(e)})
+            return False
+
+
+# --- FakeLLM (tests + offline) ----------------------------------------------
+
 
 class FakeLLM:
-    """Deterministic stub used in tests and local dev without API keys."""
+    """Deterministic stub for tests / local dev without API keys.
+
+    Returns *deep copies* of canned responses so test fixtures aren't
+    mutated through repeated calls.
+    """
 
     def __init__(self, canned: dict | None = None, text: str = "ok") -> None:
         self._canned = canned or {}
         self._text = text
 
     def classify_json(self, system: str, user: str) -> dict:  # noqa: ARG002
-        return self._canned
+        return copy.deepcopy(self._canned)
 
     def reply_text(self, system: str, user: str) -> str:  # noqa: ARG002
         return self._text
 
+    def ping(self) -> bool:
+        return True
+
+
+# --- factory -----------------------------------------------------------------
+
 
 def build_llm() -> LLMClient:
-    """
-    Factory — returns a provider based on LLM_PROVIDER, or auto-detects
-    from which API key is set. Falls back to FakeLLM when nothing is
-    configured (useful for offline dev and tests).
-    """
     s = get_settings()
     provider = (s.llm_provider or "").strip().lower()
 
-    # Explicit provider override.
     if provider == "groq":
         if not s.groq_api_key:
             log.warning("llm_provider_groq_but_no_key_using_fake")
             return FakeLLM()
-        return GroqLLM()
+        return RetryingLLMClient(GroqLLM())
     if provider == "gemini":
         if not s.gemini_api_key:
             log.warning("llm_provider_gemini_but_no_key_using_fake")
             return FakeLLM()
-        return GeminiLLM()
+        return RetryingLLMClient(GeminiLLM())
     if provider == "anthropic":
         if not s.anthropic_api_key:
             log.warning("llm_provider_anthropic_but_no_key_using_fake")
             return FakeLLM()
-        return AnthropicLLM()
+        return RetryingLLMClient(AnthropicLLM())
     if provider == "fake":
         return FakeLLM()
 
-    # Auto-detect: prefer Groq (no regional restrictions), then Gemini,
-    # then Anthropic, then Fake.
+    # Auto-detect.
     if s.groq_api_key:
         log.info("llm_autoselect_groq")
-        return GroqLLM()
+        return RetryingLLMClient(GroqLLM())
     if s.gemini_api_key:
         log.info("llm_autoselect_gemini")
-        return GeminiLLM()
+        return RetryingLLMClient(GeminiLLM())
     if s.anthropic_api_key:
         log.info("llm_autoselect_anthropic")
-        return AnthropicLLM()
+        return RetryingLLMClient(AnthropicLLM())
     log.warning("no_llm_key_using_fake_llm")
     return FakeLLM()

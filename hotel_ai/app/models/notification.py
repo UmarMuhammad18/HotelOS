@@ -1,18 +1,16 @@
-"""
-Notification — a message the AI wants sent to a human.
-
-The AI layer doesn't push SMS/email/PN itself; it hands Notification objects
-to the backend team's notification service. That keeps channel logic
-(Twilio, FCM, email templates) out of the AI repo.
-"""
+"""Notification — a message the AI wants sent to a human."""
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 class NotificationAudience(str, Enum):
@@ -24,9 +22,9 @@ class NotificationAudience(str, Enum):
 class Notification(BaseModel):
     id: str = Field(default_factory=lambda: f"ntf_{uuid4().hex[:12]}")
     audience: NotificationAudience
-    recipient_id: str                  # guest_id or staff_user_id or dept code
+    recipient_id: str
     title: str
     body: str
     related_task_id: str | None = None
     locale: str = "en"
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)

@@ -1,10 +1,4 @@
-"""
-Guest Relations agent — soft human attention for VIPs, complaints, recovery.
-
-Does NOT produce a guest_reply (another department usually already did).
-Uses display name "Guest Experience" to match the existing Node
-`sendMessage` tool's broadcast label.
-"""
+"""Guest Relations agent — soft human attention for VIPs and complaints."""
 
 from __future__ import annotations
 
@@ -48,5 +42,6 @@ class GuestRelationsAgent(BaseAgent):
                 self._decision("Queueing a Guest Experience check-in"),
             ],
             tool_calls=[tool],
-            # No guest_reply — GR reaches the guest via their own channel.
+            # No guest_reply — GR reaches the guest via their own channel
+            # (phone, in-person, follow-up survey).
         )

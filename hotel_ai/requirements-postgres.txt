@@ -1,0 +1,8 @@
+# Optional: install only when DATABASE_URL is set.
+# These are NOT in the main requirements.txt to keep the default install
+# small and avoid forcing libpq onto users running JSON-only.
+#
+# Usage:
+#   pip install -r requirements.txt -r requirements-postgres.txt
+psycopg[binary]==3.2.3
+psycopg_pool==3.2.4
