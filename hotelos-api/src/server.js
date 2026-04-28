@@ -19,13 +19,11 @@ const http    = require('http');
 const express = require('express');
 const cors    = require('cors');
 const helmet  = require('helmet');
-const { WebSocketServer } = require('ws');
-const url     = require('url');
+const { getDb, persist, all, getOne } = require('./db');
 const jwt     = require('jsonwebtoken');
 const bcrypt  = require('bcryptjs');
 const Stripe  = require('stripe');
 
-const { getDb, persist, all, getOne } = require('./db');
 const orchestrator  = require('./agents/orchestrator');
 const pythonAdvisor = require('./agents/pythonAdvisor');
 const simulation    = require('./services/simulation');
@@ -43,8 +41,7 @@ const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
 const stripe = STRIPE_SECRET ? new Stripe(STRIPE_SECRET) : null;
 
 const app         = express();
-const feedClients = new Set();
-const chatClients = new Set();
+const { initWebSockets, broadcastFeed } = require('./websocket');
 
 let saveTimer;
 function schedulePersist(db) {
@@ -52,12 +49,7 @@ function schedulePersist(db) {
   saveTimer = setTimeout(() => persist(db), 400);
 }
 
-function broadcastFeed(obj) {
-  const payload = JSON.stringify({ ...obj, timestamp: obj.timestamp || new Date().toISOString() });
-  for (const ws of feedClients) {
-    if (ws.readyState === 1) ws.send(payload);
-  }
-}
+// broadcastFeed is now imported from websocket.js
 
 function safeJson(s, fallback) {
   try { return JSON.parse(s || 'null') ?? fallback; } catch { return fallback; }
@@ -496,40 +488,8 @@ app.use((req, res) => {
 app.use(errorHandler);
 
 const server  = http.createServer(app);
-const wssFeed = new WebSocketServer({ noServer: true });
-const wssChat = new WebSocketServer({ noServer: true });
+const { feedClients, chatClients } = initWebSockets(server, broadcastFeed);
 
-wssFeed.on('connection', (ws) => {
-  feedClients.add(ws);
-  ws.send(JSON.stringify({ type: 'success', agent: 'Orchestrator', message: 'HotelOS backend connected — all systems operational', details: '', timestamp: new Date().toISOString() }));
-  ws.on('close', () => feedClients.delete(ws));
-  ws.on('error', () => feedClients.delete(ws));
-});
-
-wssChat.on('connection', (ws) => {
-  chatClients.add(ws);
-  ws.on('message', (raw) => {
-    let text = '';
-    try { const msg = JSON.parse(raw.toString()); text = msg.message ?? msg.text ?? ''; }
-    catch { text = raw.toString(); }
-    if (text) {
-      broadcastFeed({ type: 'thought', agent: 'Staff Chat', message: `Staff query: "${text.slice(0, 200)}"`, details: '' });
-      orchestrator.processEvent(`Staff Message: ${text}`);
-      ws.send(JSON.stringify({ message: 'I have received your request and forwarded it to the AI Agent system.', timestamp: new Date().toISOString() }));
-    }
-  });
-  ws.on('close', () => chatClients.delete(ws));
-  ws.on('error', () => chatClients.delete(ws));
-});
-
-server.on('upgrade', (request, socket, head) => {
-  const pathname = url.parse(request.url).pathname;
-  if (pathname === '/chat') {
-    wssChat.handleUpgrade(request, socket, head, (ws) => wssChat.emit('connection', ws, request));
-  } else {
-    wssFeed.handleUpgrade(request, socket, head, (ws) => wssFeed.emit('connection', ws, request));
-  }
-});
 
 const shutdown = async (signal) => {
   console.log(`\n[${signal}] Shutting down HotelOS API...`);

@@ -1,49 +1,48 @@
-"""
-FastAPI entrypoint for the advisor service.
+import asyncio
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from pydantic import BaseModel
+from typing import Dict, Any, Optional
+import json
 
-The Python side no longer owns task dispatch or notification delivery —
-Node does that. We wire only the LLM, memory, and orchestrator.
+from .agents.orchestrator import Orchestrator
 
-Concurrency note
-----------------
-`/v1/events` and `/v1/emergency` dispatch the orchestrator via
-`asyncio.to_thread`, so the FastAPI event loop is never blocked by the
-LLM round-trip. A single uvicorn worker can serve many in-flight
-requests without head-of-line blocking. For multi-worker deploys, set
-`DATABASE_URL` so the memory layer becomes Postgres-backed and writes
-are no longer process-local.
-"""
+app = FastAPI(title="HotelOS AI Agent Service")
+orchestrator = Orchestrator()
 
-from __future__ import annotations
+class AgentRequest(BaseModel):
+    message: str
+    context: Optional[Dict[str, Any]] = {}
 
-from fastapi import FastAPI
+@app.get("/api/agent/status")
+async def status():
+    return {"status": "online", "version": "1.0.0-demo"}
 
-from app.agents.orchestrator import Orchestrator
-from app.api import routes as api_routes
-from app.config import get_settings
-from app.llm.client import build_llm
-from app.memory.guest_memory import GuestMemory
-from app.memory.store import build_store
-from app.utils.logging import setup_logging
+@app.post("/api/agent/decide")
+async def decide(request: AgentRequest):
+    result = await orchestrator.route_and_resolve(request.message, request.context)
+    return result
 
+@app.websocket("/ws/agent")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        while True:
+            data = await websocket.receive_text()
+            try:
+                msg_json = json.loads(data)
+                message = msg_json.get("message", "")
+                context = msg_json.get("context", {})
+                
+                # Process via orchestrator
+                result = await orchestrator.route_and_resolve(message, context)
+                
+                # Send response
+                await websocket.send_text(json.dumps(result))
+            except json.JSONDecodeError:
+                await websocket.send_text(json.dumps({"error": "Invalid JSON"}))
+    except WebSocketDisconnect:
+        print("Client disconnected")
 
-def create_app() -> FastAPI:
-    setup_logging()
-    settings = get_settings()
-
-    store = build_store(settings.database_url, settings.guest_memory_path)
-    memory = GuestMemory(store)
-    llm = build_llm()
-    orchestrator = Orchestrator(llm=llm, memory=memory)
-
-    app = FastAPI(title="Hotel AI Advisor", version="0.4.0")
-
-    app.dependency_overrides[api_routes.get_orchestrator] = lambda: orchestrator
-    app.dependency_overrides[api_routes.get_memory] = lambda: memory
-    app.dependency_overrides[api_routes.get_llm] = lambda: llm
-
-    app.include_router(api_routes.router)
-    return app
-
-
-app = create_app()
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8001)
