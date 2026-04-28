@@ -28,6 +28,7 @@ const orchestrator  = require('./agents/orchestrator');
 const pythonAdvisor = require('./agents/pythonAdvisor');
 const simulation    = require('./services/simulation');
 const openclaw      = require('./services/openclaw');
+const { callAgent } = require('./services/aiClient');
 
 const { rateLimit }                        = require('./middleware/rateLimiter');
 const { required, validateAmount, validateTaskId, validateRoomId, sanitiseString } = require('./middleware/validate');
@@ -509,7 +510,28 @@ process.on('unhandledRejection', (reason) => { console.error('[unhandledRejectio
 getDb().then((db) => {
   orchestrator.init({ broadcastAgentEvent: broadcastFeed, db });
   pythonAdvisor.init({ broadcastAgentEvent: broadcastFeed, fallback: orchestrator });
-  simulation.initSimulation({ broadcastAgentEvent: broadcastFeed, getDb, orchestratorProcessEvent: orchestrator.processEvent });
+  simulation.initSimulation({ 
+    broadcastAgentEvent: broadcastFeed, 
+    getDb, 
+    orchestratorProcessEvent: async (event) => {
+      const message = typeof event === 'string' ? event : (event.message || event.type);
+      const aiResponse = await callAgent(message, { source: 'simulation', event });
+      
+      broadcastFeed({
+        type: 'thought',
+        agent: aiResponse.agent,
+        message: aiResponse.thought,
+        details: aiResponse.action
+      });
+      
+      broadcastFeed({
+        type: 'decision',
+        agent: aiResponse.agent,
+        message: aiResponse.response,
+        details: JSON.stringify(aiResponse.data)
+      });
+    } 
+  });
 
   server.listen(PORT, () => {
     console.log(`\nHotelOS API listening on http://localhost:${PORT}`);

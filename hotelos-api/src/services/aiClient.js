@@ -1,4 +1,4 @@
-const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:8001';
+const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://127.0.0.1:8001';
 
 /**
  * Sends a message to the Python AI service and gets a decision/response.
