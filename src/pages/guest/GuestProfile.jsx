@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import useAuthStore from '../../stores/useAuthStore';
+import { API_BASE } from '../../config';
 
 export default function GuestProfile() {
   const { user } = useAuthStore();
@@ -9,7 +10,7 @@ export default function GuestProfile() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`${process.env.REACT_APP_API_URL || ''}/api/guest/profile`, {
+    fetch(`${API_BASE}/api/guest/profile`, {
       headers: { 'Authorization': `Bearer ${localStorage.getItem('hotelos_token')}` }
     })
     .then(res => res.json())
@@ -23,7 +24,7 @@ export default function GuestProfile() {
     const updated = { ...preferences, [key]: value };
     setPreferences(updated);
     try {
-      await fetch(`${process.env.REACT_APP_API_URL || ''}/api/guest/profile`, {
+      await fetch(`${API_BASE}/api/guest/profile`, {
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json',

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
+import { API_BASE } from '../../config';
 
 export default function ReviewsManager() {
   const [reviews, setReviews] = useState([]);
@@ -11,7 +12,7 @@ export default function ReviewsManager() {
   }, []);
 
   const fetchReviews = () => {
-    fetch(`${process.env.REACT_APP_API_URL || ''}/api/admin/reviews`, {
+    fetch(`${API_BASE}/api/admin/reviews`, {
       headers: { 'Authorization': `Bearer ${localStorage.getItem('hotelos_token')}` }
     })
     .then(res => res.json())
@@ -21,7 +22,7 @@ export default function ReviewsManager() {
   const handleRespond = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/admin/reviews/${respondingTo}/respond`, {
+      const res = await fetch(`${API_BASE}/api/admin/reviews/${respondingTo}/respond`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',

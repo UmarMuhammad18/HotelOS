@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import useAuthStore from '../../stores/useAuthStore';
+import { API_BASE } from '../../config';
 
 export default function GuestHome() {
   const { user } = useAuthStore();
   const [hotelInfo, setHotelInfo] = useState(null);
 
   useEffect(() => {
-    fetch(`${process.env.REACT_APP_API_URL || ''}/api/guest/hotel-info`, {
+    fetch(`${API_BASE}/api/guest/hotel-info`, {
       headers: { 'Authorization': `Bearer ${localStorage.getItem('hotelos_token')}` }
     })
     .then(res => res.json())

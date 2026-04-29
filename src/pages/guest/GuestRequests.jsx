@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
+import { API_BASE } from '../../config';
 
 export default function GuestRequests() {
   const [loading, setLoading] = useState(false);
@@ -11,7 +12,7 @@ export default function GuestRequests() {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/guest/requests`, {
+      const res = await fetch(`${API_BASE}/api/guest/requests`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { API_BASE } from '../../config';
 
 export default function AdminOverview() {
   const [metrics, setMetrics] = useState(null);
@@ -10,11 +11,11 @@ export default function AdminOverview() {
     const token = localStorage.getItem('hotelos_token');
     const headers = { 'Authorization': `Bearer ${token}` };
     
-    fetch(`${process.env.REACT_APP_API_URL || ''}/api/admin/dashboard/metrics`, { headers })
+    fetch(`${API_BASE}/api/admin/dashboard/metrics`, { headers })
       .then(res => res.json())
       .then(setMetrics);
       
-    fetch(`${process.env.REACT_APP_API_URL || ''}/api/admin/reviews?limit=3`, { headers })
+    fetch(`${API_BASE}/api/admin/reviews?limit=3`, { headers })
       .then(res => res.json())
       .then(setReviews);
   }, []);

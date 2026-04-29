@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
+import { API_BASE } from '../../config';
 
 export default function GuestBill() {
   const [bill, setBill] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`${process.env.REACT_APP_API_URL || ''}/api/guest/bill`, {
+    fetch(`${API_BASE}/api/guest/bill`, {
       headers: { 'Authorization': `Bearer ${localStorage.getItem('hotelos_token')}` }
     })
     .then(res => res.json())
@@ -20,7 +21,7 @@ export default function GuestBill() {
   const handleCheckout = async () => {
     if (!window.confirm('Are you sure you want to request express checkout?')) return;
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/guest/checkout`, {
+      const res = await fetch(`${API_BASE}/api/guest/checkout`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('hotelos_token')}` }
       });

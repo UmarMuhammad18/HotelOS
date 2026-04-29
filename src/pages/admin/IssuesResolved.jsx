@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
+import { API_BASE } from '../../config';
 
 export default function IssuesResolved() {
   const [issues, setIssues] = useState([]);
 
   useEffect(() => {
-    fetch(`${process.env.REACT_APP_API_URL || ''}/api/admin/issues/resolved`, {
+    fetch(`${API_BASE}/api/admin/issues/resolved`, {
       headers: { 'Authorization': `Bearer ${localStorage.getItem('hotelos_token')}` }
     })
     .then(res => res.json())

@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { API_BASE } from '../../config';
 
 export default function RevenueAnalytics() {
   const [breakdown, setBreakdown] = useState([]);
 
   useEffect(() => {
-    fetch(`${process.env.REACT_APP_API_URL || ''}/api/admin/revenue/breakdown`, {
+    fetch(`${API_BASE}/api/admin/revenue/breakdown`, {
       headers: { 'Authorization': `Bearer ${localStorage.getItem('hotelos_token')}` }
     })
     .then(res => res.json())

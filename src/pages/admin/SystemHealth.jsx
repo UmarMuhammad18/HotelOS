@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
+import { API_BASE } from '../../config';
 
 export default function SystemHealth() {
   const [stats, setStats] = useState(null);
 
   useEffect(() => {
-    fetch(`${process.env.REACT_APP_API_URL || ''}/api/admin/system/usage`, {
+    fetch(`${API_BASE}/api/admin/system/usage`, {
       headers: { 'Authorization': `Bearer ${localStorage.getItem('hotelos_token')}` }
     })
     .then(res => res.json())

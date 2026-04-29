@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import useAuthStore from './stores/useAuthStore';
+import { API_BASE } from './config';
 
 export default function Homepage() {
   const [loginType, setLoginType] = useState('guest'); // 'guest' or 'staff'
@@ -26,7 +27,7 @@ export default function Homepage() {
       : { bookingNumber, lastName };
 
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL || ''}${endpoint}`, {
+      const res = await fetch(`${API_BASE}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)

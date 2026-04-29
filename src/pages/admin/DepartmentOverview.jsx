@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
+import { API_BASE } from '../../config';
 
 export default function DepartmentOverview() {
   const [depts, setDepts] = useState({});
 
   useEffect(() => {
-    fetch(`${process.env.REACT_APP_API_URL || ''}/api/admin/departments`, {
+    fetch(`${API_BASE}/api/admin/departments`, {
       headers: { 'Authorization': `Bearer ${localStorage.getItem('hotelos_token')}` }
     })
     .then(res => res.json())

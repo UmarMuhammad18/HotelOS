@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
+import { API_BASE } from '../../config';
 
 export default function GuestOffers() {
   const [offers, setOffers] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`${process.env.REACT_APP_API_URL || ''}/api/guest/offers`, {
+    fetch(`${API_BASE}/api/guest/offers`, {
       headers: { 'Authorization': `Bearer ${localStorage.getItem('hotelos_token')}` }
     })
     .then(res => res.json())
@@ -19,7 +20,7 @@ export default function GuestOffers() {
 
   const handleAccept = async (offerId) => {
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/guest/offers/${offerId}/accept`, {
+      const res = await fetch(`${API_BASE}/api/guest/offers/${offerId}/accept`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('hotelos_token')}` }
       });
