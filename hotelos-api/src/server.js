@@ -44,6 +44,9 @@ const stripe = STRIPE_SECRET ? new Stripe(STRIPE_SECRET) : null;
 const app         = express();
 const { initWebSockets, broadcastFeed } = require('./websocket');
 
+const guestRoutes = require('./routes/guest');
+const adminRoutes = require('./routes/admin');
+
 let saveTimer;
 function schedulePersist(db) {
   clearTimeout(saveTimer);
@@ -121,6 +124,14 @@ function requireAuth(req, res, next) {
   }
 }
 
+function authorize(roles) {
+  return (req, res, next) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthenticated' });
+    if (!roles.includes(req.user.role)) return res.status(403).json({ error: 'Forbidden: Insufficient permissions' });
+    next();
+  };
+}
+
 const globalLimiter = rateLimit({ windowMs: 60_000, max: 120 });
 const loginLimiter  = rateLimit({ windowMs: 15 * 60_000, max: 10, message: 'Too many login attempts. Try again in 15 minutes.' });
 const payLimiter    = rateLimit({ windowMs: 60_000, max: 20 });
@@ -175,7 +186,7 @@ app.post('/api/login', loginLimiter, required(['email', 'password']), asyncHandl
   const email    = sanitiseString(req.body.email).toLowerCase().trim();
   const password = String(req.body.password);
 
-  const user = getOne(db, 'SELECT * FROM staff_users WHERE email = ?', [email]);
+  const user = getOne(db, 'SELECT * FROM users WHERE email = ?', [email]);
   if (!user || !(await bcrypt.compare(password, user.password_hash)))
     return res.status(401).json({ error: 'Invalid credentials' });
 
@@ -187,9 +198,34 @@ app.post('/api/login', loginLimiter, required(['email', 'password']), asyncHandl
   res.json({ token, user: { id: user.id, email: user.email, name: user.name, role: user.role } });
 }));
 
+app.post('/api/auth/guest-login', loginLimiter, required(['bookingNumber', 'lastName']), asyncHandler(async (req, res) => {
+  const db = await getDb();
+  const bookingNumber = sanitiseString(req.body.bookingNumber);
+  const lastName = sanitiseString(req.body.lastName);
+
+  const guest = getOne(db, 'SELECT * FROM guests WHERE booking_confirmation = ? AND last_name = ?', [bookingNumber, lastName]);
+  if (!guest) return res.status(401).json({ error: 'Invalid booking details' });
+
+  // Find or create a user record for this guest
+  let user = getOne(db, 'SELECT * FROM users WHERE guest_id = ?', [guest.id]);
+  if (!user) {
+    const userId = `u_${guest.id}`;
+    db.run('INSERT INTO users (id, name, role, guest_id) VALUES (?,?,?,?)', [userId, guest.name, 'guest', guest.id]);
+    persist(db);
+    user = { id: userId, name: guest.name, role: 'guest', guest_id: guest.id };
+  }
+
+  const token = jwt.sign(
+    { sub: user.id, name: user.name, role: user.role, guestId: guest.id },
+    JWT_SECRET,
+    { expiresIn: '7d' }
+  );
+  res.json({ token, user: { id: user.id, name: user.name, role: user.role, guestId: guest.id } });
+}));
+
 app.get('/api/me', requireAuth, asyncHandler(async (req, res) => {
   const db   = await getDb();
-  const user = getOne(db, 'SELECT id, email, name, role FROM staff_users WHERE id = ?', [req.user.sub]);
+  const user = getOne(db, 'SELECT id, email, name, role FROM users WHERE id = ?', [req.user.sub]);
   if (!user) return res.status(404).json({ error: 'User not found' });
   res.json(user);
 }));
@@ -480,6 +516,9 @@ app.get('/api/openclaw/marketplace', (_req, res) => {
   });
 });
 
+
+app.use('/api/guest', requireAuth, authorize(['guest']), guestRoutes);
+app.use('/api/admin', requireAuth, authorize(['admin']), adminRoutes);
 
 app.use((req, res) => {
   if (req.path.startsWith('/api')) return res.status(404).json({ error: `Not found: ${req.method} ${req.path}` });

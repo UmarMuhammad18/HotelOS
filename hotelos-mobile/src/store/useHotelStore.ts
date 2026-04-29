@@ -56,6 +56,8 @@ type State = {
   } | null;
   token: string | null;
   userName: string | null;
+  userRole: string | null;
+  guestId: string | null;
   offlineMode: boolean;
   /** Increment after changing API base URL so sockets and HTTP refresh */
   configVersion: number;
@@ -70,7 +72,7 @@ type State = {
   setTasks: (tasks: TaskRow[]) => void;
   patchTask: (id: string, patch: Partial<TaskRow>) => void;
   setMetrics: (m: State['metrics']) => void;
-  setToken: (token: string | null, name?: string | null) => void;
+  setToken: (token: string | null, name?: string | null, role?: string | null, guestId?: string | null) => void;
   setOfflineMode: (v: boolean) => void;
   clearEvents: () => void;
 };
@@ -90,6 +92,8 @@ export const useHotelStore = create<State>()(
       metrics: null,
       token: null,
       userName: null,
+      userRole: null,
+      guestId: null,
       offlineMode: false,
       configVersion: 0,
       bumpConfig: () => set((s) => ({ configVersion: s.configVersion + 1 })),
@@ -165,7 +169,7 @@ export const useHotelStore = create<State>()(
           tasks: state.tasks.map((t) => (t.id === id ? { ...t, ...patch } : t)),
         })),
       setMetrics: (metrics) => set({ metrics }),
-      setToken: (token, userName = null) => set({ token, userName }),
+      setToken: (token, userName = null, userRole = null, guestId = null) => set({ token, userName, userRole, guestId }),
       setOfflineMode: (offlineMode) => set({ offlineMode }),
       clearEvents: () => set({ events: [], lastEvent: null }),
     }),
@@ -178,6 +182,8 @@ export const useHotelStore = create<State>()(
         tasks: s.tasks,
         token: s.token,
         userName: s.userName,
+        userRole: s.userRole,
+        guestId: s.guestId,
         metrics: s.metrics,
       }),
     }

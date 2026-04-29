@@ -10,6 +10,8 @@ import { NotificationsScreen } from '../screens/NotificationsScreen';
 import { PaymentsHubScreen } from '../screens/PaymentsHubScreen';
 import { PaymentProductScreen } from '../screens/PaymentProductScreen';
 import { MainHeader } from '../components/MainHeader';
+import { useHotelStore } from '../store/useHotelStore';
+import { GuestTabNavigator } from './GuestTabNavigator';
 import type { RootStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -28,21 +30,29 @@ const HotelDark = {
 
 export function RootNavigator() {
   const scheme = useColorScheme();
+  const userRole = useHotelStore((s) => s.userRole);
+
   return (
     <NavigationContainer theme={scheme === 'dark' ? HotelDark : DefaultTheme}>
       <Stack.Navigator initialRouteName="Splash">
         <Stack.Screen name="Splash" component={SplashScreen} options={{ headerShown: false }} />
-        <Stack.Screen name="Login" component={LoginScreen} options={{ title: 'Staff Login' }} />
-        <Stack.Screen
-          name="Main"
-          component={MainLayout}
-          options={{
-            title: 'Dashboard',
-            header: ({ navigation, options }: NativeStackHeaderProps) => (
-              <MainHeader title={(options.title as string) || 'HotelOS'} navigation={navigation as never} />
-            ),
-          }}
-        />
+        <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
+        
+        {userRole === 'guest' ? (
+          <Stack.Screen name="Main" component={GuestTabNavigator} options={{ headerShown: false }} />
+        ) : (
+          <Stack.Screen
+            name="Main"
+            component={MainLayout}
+            options={{
+              title: 'Dashboard',
+              header: ({ navigation, options }: NativeStackHeaderProps) => (
+                <MainHeader title={(options.title as string) || 'HotelOS'} navigation={navigation as never} />
+              ),
+            }}
+          />
+        )}
+        
         <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
         <Stack.Screen name="GuestProfile" component={GuestProfileScreen} options={{ title: 'Guest' }} />
         <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Alerts' }} />
