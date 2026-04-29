@@ -124,6 +124,33 @@ async function getDb() {
         console.error('Migration error:', err);
       }
 
+      // Migration: add last_name and booking_confirmation to guests if missing
+      try {
+        db.exec("ALTER TABLE guests ADD COLUMN last_name TEXT");
+      } catch (err) {}
+      try {
+        db.exec("ALTER TABLE guests ADD COLUMN booking_confirmation TEXT UNIQUE");
+      } catch (err) {}
+      
+      // Populate nulls for migration
+      try {
+        const nullGuests = db.exec("SELECT id, name FROM guests WHERE booking_confirmation IS NULL");
+        if (nullGuests.length > 0 && nullGuests[0].values) {
+          console.log('Populating missing guest fields...');
+          for (let i = 0; i < nullGuests[0].values.length; i++) {
+            const id = nullGuests[0].values[i][0];
+            const name = nullGuests[0].values[i][1];
+            const names = name.split(' ');
+            const lastName = names[names.length - 1];
+            const bookingRef = `BK-${1000 + i}`; // Deterministic for migration
+            db.exec(`UPDATE guests SET last_name = '${lastName}', booking_confirmation = '${bookingRef}' WHERE id = '${id}'`);
+          }
+        }
+      } catch (err) {
+        console.error('Error populating guests:', err);
+      }
+
+
       const cntRes = db.exec('SELECT COUNT(*) FROM rooms');
       const roomCount = cntRes[0]?.values?.[0]?.[0] ?? 0;
       if (roomCount === 0) {
