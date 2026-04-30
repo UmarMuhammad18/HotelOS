@@ -5,7 +5,7 @@ services:
     repo: https://github.com/UmarMuhammad18/HotelOS # Replace with your repo URL
     plan: free
     buildCommand: npm install && npm run build
-    startCommand: npm install -g serve && serve -s build
+    startCommand: npm run serve
     envVars:
       # Frontend auto-detects environment and connects to backend
       # Optional: explicitly set backend URL if auto-detection fails

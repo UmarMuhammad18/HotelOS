@@ -250,6 +250,31 @@ export default function DashboardLayout() {
               <Link to="/dashboard/tasks" className={`nav-link ${isActive('/tasks') ? 'active' : ''}`}>
                 <span>📋</span> Task Board
               </Link>
+              
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', margin: '16px 0', paddingTop: '16px' }}>
+                <div style={{ paddingLeft: '24px', fontSize: '12px', color: '#666', marginBottom: '8px', fontWeight: '600' }}>DEPARTMENTS</div>
+                <Link to="/dashboard/department/concierge" className={`nav-link ${isActive('/department/concierge') ? 'active' : ''}`}>
+                  <span>🎩</span> Concierge
+                </Link>
+                <Link to="/dashboard/department/food_beverage" className={`nav-link ${isActive('/department/food_beverage') ? 'active' : ''}`}>
+                  <span>🍽️</span> Food & Beverage
+                </Link>
+                <Link to="/dashboard/department/housekeeping" className={`nav-link ${isActive('/department/housekeeping') ? 'active' : ''}`}>
+                  <span>🧹</span> Housekeeping
+                </Link>
+                <Link to="/dashboard/department/maintenance" className={`nav-link ${isActive('/department/maintenance') ? 'active' : ''}`}>
+                  <span>🔧</span> Maintenance
+                </Link>
+                <Link to="/dashboard/department/front_office" className={`nav-link ${isActive('/department/front_office') ? 'active' : ''}`}>
+                  <span>🛎️</span> Front Office
+                </Link>
+                <Link to="/dashboard/department/guest_relations" className={`nav-link ${isActive('/department/guest_relations') ? 'active' : ''}`}>
+                  <span>🤝</span> Guest Relations
+                </Link>
+                <Link to="/dashboard/department/guest_experience" className={`nav-link ${isActive('/department/guest_experience') ? 'active' : ''}`}>
+                  <span>⭐</span> Guest Experience
+                </Link>
+              </div>
             </>
           )}
         </aside>
