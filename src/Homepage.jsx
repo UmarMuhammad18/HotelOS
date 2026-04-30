@@ -35,7 +35,8 @@ export default function Homepage() {
       
       const data = await res.json();
       if (res.ok) {
-        login(data.user, data.token);
+        const loggedInUser = login(data.user, data.token);
+        const role = loggedInUser?.role;
         toast.success(`Welcome, ${data.user.name}!`);
         setShowLogin(false);
         setEmail('');
@@ -43,9 +44,9 @@ export default function Homepage() {
         setBookingNumber('');
         setLastName('');
 
-        if (data.user.role === 'guest') navigate('/guest/home');
-        else if (data.user.role === 'admin') navigate('/admin');
-        else navigate('/dashboard');
+        if (role === 'guest') navigate('/guest/home', { replace: true });
+        else if (role === 'admin') navigate('/admin', { replace: true });
+        else navigate('/dashboard', { replace: true });
       } else {
         toast.error(data.error || 'Login failed');
       }

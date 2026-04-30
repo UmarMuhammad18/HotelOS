@@ -1,11 +1,14 @@
 services:
-  - type: web
+  - type: static
     name: hotelos-frontend
-    runtime: node
     repo: https://github.com/UmarMuhammad18/HotelOS # Replace with your repo URL
     plan: free
-    buildCommand: npm install && npm run build
-    startCommand: npm run serve
+    buildCommand: npm ci && npm run build
+    staticPublishPath: build
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
     envVars:
       # Frontend auto-detects environment and connects to backend
       # Optional: explicitly set backend URL if auto-detection fails
