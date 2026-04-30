@@ -1,5 +1,18 @@
 services:
   - type: web
+    name: hotelos-frontend
+    runtime: node
+    repo: https://github.com/UmarMuhammad18/HotelOS # Replace with your repo URL
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm install -g serve && serve -s build
+    envVars:
+      # Frontend auto-detects environment and connects to backend
+      # Optional: explicitly set backend URL if auto-detection fails
+      # - key: REACT_APP_API_URL
+      #   value: https://hotelos-api-xxxxx.onrender.com
+
+  - type: web
     name: hotelos-api
     runtime: node
     repo: https://github.com/UmarMuhammad18/HotelOS # Replace with your repo URL
