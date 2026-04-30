@@ -17,6 +17,7 @@ from .task import (
 )
 from .event import EventChannel, HotelEvent
 from .notification import Notification, NotificationAudience
+from .outcome import OutcomeRecord, OutcomeStatus
 from .plan import (
     AgentEvent,
     AgentEventType,
@@ -42,6 +43,8 @@ __all__ = [
     "EventChannel",
     "Notification",
     "NotificationAudience",
+    "OutcomeRecord",
+    "OutcomeStatus",
     "AgentEvent",
     "AgentEventType",
     "GuestReply",

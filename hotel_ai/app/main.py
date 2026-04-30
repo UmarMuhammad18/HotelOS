@@ -1,48 +1,77 @@
-import asyncio
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from pydantic import BaseModel
-from typing import Dict, Any, Optional
-import json
+"""
+FastAPI entrypoint for the advisor service.
 
-from .agents.orchestrator import Orchestrator
+Wiring
+------
+We construct (and own the lifecycle of):
+  - LLM client
+  - Guest memory (JSON or Postgres)
+  - Outcome store + recorder (JSON or Postgres)
+  - Orchestrator (composed of the above)
+and inject them into routes via dependency overrides.
 
-app = FastAPI(title="HotelOS AI Agent Service")
-orchestrator = Orchestrator()
+Concurrency note
+----------------
+`/v1/events` and `/v1/emergency` dispatch the orchestrator via
+`asyncio.to_thread`, so the FastAPI event loop is never blocked by the
+LLM round-trip. A single uvicorn worker can serve many in-flight
+requests without head-of-line blocking. For multi-worker deploys, set
+`DATABASE_URL` so memory + outcome layers become Postgres-backed and
+writes are no longer process-local.
+"""
 
-class AgentRequest(BaseModel):
-    message: str
-    context: Optional[Dict[str, Any]] = {}
+from __future__ import annotations
 
-@app.get("/api/agent/status")
-async def status():
-    return {"status": "online", "version": "1.0.0-demo"}
+from fastapi import FastAPI
 
-@app.post("/api/agent/decide")
-async def decide(request: AgentRequest):
-    result = await orchestrator.route_and_resolve(request.message, request.context)
-    return result
+from app.agents.orchestrator import Orchestrator
+from app.api import routes as api_routes
+from app.config import get_settings
+from app.llm.client import build_llm
+from app.memory.guest_memory import GuestMemory
+from app.memory.outcome_store import build_outcome_store
+from app.memory.store import build_store
+from app.services.outcome_recorder import OutcomeRecorder
+from app.utils.logging import setup_logging
 
-@app.websocket("/ws/agent")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    try:
-        while True:
-            data = await websocket.receive_text()
-            try:
-                msg_json = json.loads(data)
-                message = msg_json.get("message", "")
-                context = msg_json.get("context", {})
-                
-                # Process via orchestrator
-                result = await orchestrator.route_and_resolve(message, context)
-                
-                # Send response
-                await websocket.send_text(json.dumps(result))
-            except json.JSONDecodeError:
-                await websocket.send_text(json.dumps({"error": "Invalid JSON"}))
-    except WebSocketDisconnect:
-        print("Client disconnected")
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+def create_app() -> FastAPI:
+    setup_logging()
+    settings = get_settings()
+
+    # --- Guest memory ---
+    guest_store = build_store(settings.database_url, settings.guest_memory_path)
+    memory = GuestMemory(guest_store)
+
+    # --- Outcome telemetry ---
+    # Path is derived from the guest-memory path so dev installs get a
+    # sensible default ("./data/outcomes.json" alongside the guest
+    # memory file). Customers can override via OUTCOME_STORE_PATH if
+    # they want a different location.
+    outcome_path = settings.outcome_store_path
+    outcome_store = build_outcome_store(settings.database_url, outcome_path)
+    recorder = OutcomeRecorder(outcome_store)
+
+    # --- LLM + orchestrator ---
+    llm = build_llm()
+    orchestrator = Orchestrator(
+        llm=llm,
+        memory=memory,
+        outcome_recorder=recorder,
+        property_id=settings.property_id,
+    )
+
+    app = FastAPI(title="Hotel AI Advisor", version="0.5.0")
+
+    # Wire DI hooks
+    app.dependency_overrides[api_routes.get_orchestrator] = lambda: orchestrator
+    app.dependency_overrides[api_routes.get_memory] = lambda: memory
+    app.dependency_overrides[api_routes.get_llm] = lambda: llm
+    app.dependency_overrides[api_routes.get_outcome_store] = lambda: outcome_store
+    app.dependency_overrides[api_routes.get_outcome_recorder] = lambda: recorder
+
+    app.include_router(api_routes.router)
+    return app
+
+
+app = create_app()
