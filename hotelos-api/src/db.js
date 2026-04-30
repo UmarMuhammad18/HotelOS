@@ -150,6 +150,27 @@ async function getDb() {
         console.error('Error populating guests:', err);
       }
 
+      // Migration: Ensure admin and demo staff exist
+      try {
+        const bcrypt = require('bcryptjs');
+        const hash = bcrypt.hashSync('admin123', 10);
+        const staffHash = bcrypt.hashSync('staff123', 10);
+        
+        const adminCheck = db.exec("SELECT id FROM users WHERE email = 'admin@hotelos.app'");
+        if (!adminCheck.length || !adminCheck[0].values.length) {
+          console.log('Inserting missing admin user...');
+          db.exec(`INSERT INTO users (id, email, password_hash, name, role) VALUES ('admin_1', 'admin@hotelos.app', '${hash}', 'General Manager', 'admin')`);
+        }
+
+        const staffCheck = db.exec("SELECT id FROM users WHERE email = 'demo@hotelos.app'");
+        if (!staffCheck.length || !staffCheck[0].values.length) {
+          console.log('Inserting missing demo staff user...');
+          db.exec(`INSERT INTO users (id, email, password_hash, name, role) VALUES ('staff_demo_2', 'demo@hotelos.app', '${staffHash}', 'Demo Staff', 'staff')`);
+        }
+      } catch (err) {
+        console.error('Error ensuring admin/staff users:', err);
+      }
+
 
       const cntRes = db.exec('SELECT COUNT(*) FROM rooms');
       const roomCount = cntRes[0]?.values?.[0]?.[0] ?? 0;
