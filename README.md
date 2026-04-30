@@ -244,5 +244,8 @@ HotelOS was built for the Encode Hackathon Agent Track. The Python AI service, a
 ---
 
 <div align="center">
-Made with care by <a href="https://github.com/UmarMuhammad18">UmarMuhammad18</a>
+Made with care by
+<a href="https://github.com/UmarMuhammad18">@UmarMuhammad18</a> ·
+<a href="https://github.com/SudoJasper23">@SudoJasper23</a> ·
+<a href="https://github.com/HIREN-BOSS">@HIREN-BOSS</a>
 </div>
