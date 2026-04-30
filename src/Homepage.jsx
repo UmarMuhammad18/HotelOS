@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
@@ -16,6 +16,27 @@ export default function Homepage() {
 
   const { login } = useAuthStore();
   const navigate = useNavigate();
+
+  const getRouteForRole = (role) => {
+    if (role === 'guest') return '/guest/home';
+    if (role === 'admin') return '/admin';
+    return '/dashboard';
+  };
+
+  useEffect(() => {
+    try {
+      const savedUser = JSON.parse(localStorage.getItem('hotelos_user') || 'null');
+      const role = String(savedUser?.role || '').toLowerCase().trim();
+      const token = localStorage.getItem('hotelos_token');
+
+      if (token && role) {
+        navigate(getRouteForRole(role), { replace: true });
+      }
+    } catch {
+      localStorage.removeItem('hotelos_user');
+      localStorage.removeItem('hotelos_token');
+    }
+  }, [navigate]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -44,9 +65,7 @@ export default function Homepage() {
         setBookingNumber('');
         setLastName('');
 
-        if (role === 'guest') navigate('/guest/home', { replace: true });
-        else if (role === 'admin') navigate('/admin', { replace: true });
-        else navigate('/dashboard', { replace: true });
+        window.location.replace(getRouteForRole(role));
       } else {
         toast.error(data.error || 'Login failed');
       }
