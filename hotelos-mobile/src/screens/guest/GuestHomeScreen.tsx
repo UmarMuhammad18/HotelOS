@@ -1,11 +1,11 @@
 import { View, StyleSheet, ScrollView } from 'react-native';
 import { Text, Card, Button } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useHotelStore } from '../store/useHotelStore';
+import { useHotelStore } from '../../store/useHotelStore';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 export function GuestHomeScreen({ navigation }: any) {
-  const userName = useHotelStore((s) => s.userName);
+  const userName = useHotelStore((s: any) => s.userName);
   const firstName = userName?.split(' ')[0] || 'Guest';
 
   return (

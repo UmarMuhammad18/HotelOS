@@ -25,9 +25,11 @@ export function HomeScreen() {
         </Animated.View>
       ) : null}
       
-      <Animated.Text entering={FadeInDown.delay(100)} variant="titleLarge" style={styles.heading}>
-        Operations Center
-      </Animated.Text>
+      <Animated.View entering={FadeInDown.delay(100)}>
+        <Text variant="titleLarge" style={styles.heading}>
+          Operations Center
+        </Text>
+      </Animated.View>
       
       <View style={styles.grid}>
         <Animated.View entering={FadeInDown.delay(200)} style={styles.cardContainer}>
@@ -70,9 +72,11 @@ export function HomeScreen() {
         </Animated.View>
       </View>
 
-      <Animated.Text entering={FadeInDown.delay(500)} variant="titleMedium" style={styles.subHeading}>
-        Lobby pulse
-      </Animated.Text>
+      <Animated.View entering={FadeInDown.delay(500)}>
+        <Text variant="titleMedium" style={styles.subHeading}>
+          Lobby pulse
+        </Text>
+      </Animated.View>
       
       <Animated.View entering={FadeIn.delay(600)} style={styles.lottieBox}>
         <View style={styles.pulseContainer}>
