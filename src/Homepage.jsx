@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import useAuthStore from './stores/useAuthStore';
 import { API_BASE } from './config';
+import { getRouteForRole, normalizeRole } from './utils/roles';
 
 export default function Homepage() {
   const [loginType, setLoginType] = useState('guest'); // 'guest' or 'staff'
@@ -17,20 +18,18 @@ export default function Homepage() {
   const { login } = useAuthStore();
   const navigate = useNavigate();
 
-  const getRouteForRole = (role) => {
-    if (role === 'guest') return '/guest/home';
-    if (role === 'admin') return '/admin';
-    return '/dashboard';
-  };
-
   useEffect(() => {
     try {
       const savedUser = JSON.parse(localStorage.getItem('hotelos_user') || 'null');
-      const role = String(savedUser?.role || '').toLowerCase().trim();
+      const role = normalizeRole(savedUser?.role);
       const token = localStorage.getItem('hotelos_token');
+      const route = getRouteForRole(role);
 
-      if (token && role) {
-        navigate(getRouteForRole(role), { replace: true });
+      if (token && route) {
+        navigate(route, { replace: true });
+      } else if (token && role) {
+        localStorage.removeItem('hotelos_user');
+        localStorage.removeItem('hotelos_token');
       }
     } catch {
       localStorage.removeItem('hotelos_user');
@@ -58,6 +57,7 @@ export default function Homepage() {
       if (res.ok) {
         const loggedInUser = login(data.user, data.token);
         const role = loggedInUser?.role;
+        const route = getRouteForRole(role);
         toast.success(`Welcome, ${data.user.name}!`);
         setShowLogin(false);
         setEmail('');
@@ -65,7 +65,8 @@ export default function Homepage() {
         setBookingNumber('');
         setLastName('');
 
-        window.location.replace(getRouteForRole(role));
+        if (route) window.location.replace(route);
+        else toast.error(`Unsupported role: ${role || 'unknown'}`);
       } else {
         toast.error(data.error || 'Login failed');
       }

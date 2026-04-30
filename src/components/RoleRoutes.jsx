@@ -1,5 +1,6 @@
 import { Navigate, Outlet } from 'react-router-dom';
 import useAuthStore from '../stores/useAuthStore';
+import { isStaffRole } from '../utils/roles';
 
 export const GuestProtectedRoute = () => {
   const { user } = useAuthStore();
@@ -15,6 +16,6 @@ export const AdminProtectedRoute = () => {
 
 export const StaffProtectedRoute = () => {
   const { user } = useAuthStore();
-  if (!user || (user.role !== 'staff' && user.role !== 'admin')) return <Navigate to="/" replace />;
+  if (!user || (user.role !== 'admin' && !isStaffRole(user.role))) return <Navigate to="/" replace />;
   return <Outlet />;
 };

@@ -1,10 +1,11 @@
 import { create } from 'zustand';
+import { normalizeRole } from '../utils/roles';
 
 const normalizeUser = (userData) => {
   if (!userData) return null;
   return {
     ...userData,
-    role: String(userData.role || '').toLowerCase().trim(),
+    role: normalizeRole(userData.role),
   };
 };
 
