@@ -37,7 +37,12 @@ export default function Homepage() {
       if (res.ok) {
         login(data.user, data.token);
         toast.success(`Welcome, ${data.user.name}!`);
-        
+        setShowLogin(false);
+        setEmail('');
+        setPassword('');
+        setBookingNumber('');
+        setLastName('');
+
         if (data.user.role === 'guest') navigate('/guest/home');
         else if (data.user.role === 'admin') navigate('/admin');
         else navigate('/dashboard');

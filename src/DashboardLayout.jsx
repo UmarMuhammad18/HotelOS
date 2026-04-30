@@ -208,25 +208,25 @@ export default function DashboardLayout() {
         <aside className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
           {user?.role === 'admin' ? (
             <>
-              <Link to="/admin" className={`nav-link ${isActive('') ? 'active' : ''}`}>
+              <Link to="/admin" className={`nav-link ${isActive('/admin', true) ? 'active' : ''}`}>
                 <span>📊</span> Admin Overview
               </Link>
-              <Link to="/admin/revenue" className={`nav-link ${isActive('/revenue') ? 'active' : ''}`}>
+              <Link to="/admin/revenue" className={`nav-link ${isActive('/admin/revenue', true) ? 'active' : ''}`}>
                 <span>💰</span> Revenue Analytics
               </Link>
-              <Link to="/admin/reviews" className={`nav-link ${isActive('/reviews') ? 'active' : ''}`}>
+              <Link to="/admin/reviews" className={`nav-link ${isActive('/admin/reviews', true) ? 'active' : ''}`}>
                 <span>⭐</span> Reviews Manager
               </Link>
-              <Link to="/admin/departments" className={`nav-link ${isActive('/departments') ? 'active' : ''}`}>
+              <Link to="/admin/departments" className={`nav-link ${isActive('/admin/departments', true) ? 'active' : ''}`}>
                 <span>🏢</span> Department Overview
               </Link>
-              <Link to="/admin/system" className={`nav-link ${isActive('/system') ? 'active' : ''}`}>
+              <Link to="/admin/system" className={`nav-link ${isActive('/admin/system', true) ? 'active' : ''}`}>
                 <span>⚙️</span> System Health
               </Link>
-              <Link to="/admin/issues" className={`nav-link ${isActive('/issues') ? 'active' : ''}`}>
+              <Link to="/admin/issues" className={`nav-link ${isActive('/admin/issues', true) ? 'active' : ''}`}>
                 <span>🔧</span> Issues Resolved
               </Link>
-              <Link to="/dashboard/agents" className={`nav-link ${isActive('/agents') ? 'active' : ''}`}>
+              <Link to="/dashboard/agents" className={`nav-link ${isActive('/dashboard/agents', true) ? 'active' : ''}`}>
                 <span>🤖</span> Agents
               </Link>
               <Link to="/dashboard" className={`nav-link ${isActive('/dashboard', true) ? 'active' : ''}`}>
