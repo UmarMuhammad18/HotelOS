@@ -1,4 +1,4 @@
-import { Outlet, Link, useLocation } from 'react-router-dom';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import ConnectionStatus from './components/ConnectionStatus';
 import EventAnimationTrigger from './components/EventAnimationTrigger';
@@ -6,26 +6,37 @@ import NotificationCenter from './components/NotificationCenter';
 import { useWebSocketClient } from './hooks/useWebSocketClient';
 import { WS_URL } from './config';
 import { useDarkMode } from './hooks/useDarkMode';
+import useAuthStore from './stores/useAuthStore';
 
 export default function DashboardLayout() {
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [isDark, setIsDark] = useDarkMode();
   const location = useLocation();
+  const { user } = useAuthStore();
+  const navigate = useNavigate();
   
   useWebSocketClient(WS_URL);
 
-  const isActive = (path) => location.pathname === `/dashboard${path}`;
+  const isActive = (path, isFullPath = false) => {
+    if (isFullPath) {
+      return location.pathname === path;
+    }
+    if (user?.role === 'admin') {
+      return location.pathname === `/admin${path}` || location.pathname === `/dashboard${path}`;
+    }
+    return location.pathname === `/dashboard${path}`;
+  };
 
   useEffect(() => {
     const handleKeyPress = (e) => {
-      if (e.ctrlKey && e.key === 'm') window.location.href = '/dashboard/map';
-      else if (e.ctrlKey && e.key === 't') window.location.href = '/dashboard/tasks';
-      else if (e.ctrlKey && e.key === 'a') window.location.href = '/dashboard/agents';
-      else if (e.ctrlKey && e.key === 'h') window.location.href = '/dashboard';
+      if (e.ctrlKey && e.key === 'm') navigate('/dashboard/map');
+      else if (e.ctrlKey && e.key === 't') navigate('/dashboard/tasks');
+      else if (e.ctrlKey && e.key === 'a') navigate('/dashboard/agents');
+      else if (e.ctrlKey && e.key === 'h') navigate(user?.role === 'admin' ? '/admin' : '/dashboard');
     };
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, []);
+  }, [navigate, user?.role]);
 
   // Close sidebar on navigation (mobile)
   useEffect(() => {
@@ -195,21 +206,52 @@ export default function DashboardLayout() {
         <div className={`overlay ${isSidebarOpen ? 'open' : ''}`} onClick={() => setSidebarOpen(false)} />
         
         <aside className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
-          <Link to="/dashboard" className={`nav-link ${isActive('') ? 'active' : ''}`}>
-            <span>🏠</span> Dashboard Home
-          </Link>
-          <Link to="/dashboard/map" className={`nav-link ${isActive('/map') ? 'active' : ''}`}>
-            <span>🗺️</span> Hotel Map
-          </Link>
-          <Link to="/dashboard/agents" className={`nav-link ${isActive('/agents') ? 'active' : ''}`}>
-            <span>🤖</span> Agents
-          </Link>
-          <Link to="/dashboard/chat" className={`nav-link ${isActive('/chat') ? 'active' : ''}`}>
-            <span>💬</span> Staff Chat
-          </Link>
-          <Link to="/dashboard/tasks" className={`nav-link ${isActive('/tasks') ? 'active' : ''}`}>
-            <span>📋</span> Task Board
-          </Link>
+          {user?.role === 'admin' ? (
+            <>
+              <Link to="/admin" className={`nav-link ${isActive('') ? 'active' : ''}`}>
+                <span>📊</span> Admin Overview
+              </Link>
+              <Link to="/admin/revenue" className={`nav-link ${isActive('/revenue') ? 'active' : ''}`}>
+                <span>💰</span> Revenue Analytics
+              </Link>
+              <Link to="/admin/reviews" className={`nav-link ${isActive('/reviews') ? 'active' : ''}`}>
+                <span>⭐</span> Reviews Manager
+              </Link>
+              <Link to="/admin/departments" className={`nav-link ${isActive('/departments') ? 'active' : ''}`}>
+                <span>🏢</span> Department Overview
+              </Link>
+              <Link to="/admin/system" className={`nav-link ${isActive('/system') ? 'active' : ''}`}>
+                <span>⚙️</span> System Health
+              </Link>
+              <Link to="/admin/issues" className={`nav-link ${isActive('/issues') ? 'active' : ''}`}>
+                <span>🔧</span> Issues Resolved
+              </Link>
+              <Link to="/dashboard/agents" className={`nav-link ${isActive('/agents') ? 'active' : ''}`}>
+                <span>🤖</span> Agents
+              </Link>
+              <Link to="/dashboard" className={`nav-link ${isActive('/dashboard', true) ? 'active' : ''}`}>
+                <span>🏠</span> Manager Dashboard
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link to="/dashboard" className={`nav-link ${isActive('') ? 'active' : ''}`}>
+                <span>🏠</span> Dashboard Home
+              </Link>
+              <Link to="/dashboard/map" className={`nav-link ${isActive('/map') ? 'active' : ''}`}>
+                <span>🗺️</span> Hotel Map
+              </Link>
+              <Link to="/dashboard/agents" className={`nav-link ${isActive('/agents') ? 'active' : ''}`}>
+                <span>🤖</span> Agents
+              </Link>
+              <Link to="/dashboard/chat" className={`nav-link ${isActive('/chat') ? 'active' : ''}`}>
+                <span>💬</span> Staff Chat
+              </Link>
+              <Link to="/dashboard/tasks" className={`nav-link ${isActive('/tasks') ? 'active' : ''}`}>
+                <span>📋</span> Task Board
+              </Link>
+            </>
+          )}
         </aside>
 
         <main className="content-area">
@@ -218,4 +260,4 @@ export default function DashboardLayout() {
       </div>
     </div>
   );
-}
+}
