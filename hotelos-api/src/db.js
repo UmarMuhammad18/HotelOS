@@ -129,7 +129,7 @@ async function getDb() {
         db.exec("ALTER TABLE guests ADD COLUMN last_name TEXT");
       } catch (err) {}
       try {
-        db.exec("ALTER TABLE guests ADD COLUMN booking_confirmation TEXT UNIQUE");
+        db.exec("ALTER TABLE guests ADD COLUMN booking_confirmation TEXT");
       } catch (err) {}
       
       // Populate nulls for migration
