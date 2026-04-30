@@ -5,11 +5,15 @@ import { HotelMapScreen } from '../screens/HotelMapScreen';
 import { AgentsScreen } from '../screens/AgentsScreen';
 import { ChatScreen } from '../screens/ChatScreen';
 import { TaskBoardScreen } from '../screens/TaskBoardScreen';
+import { AdminAnalyticsScreen } from '../screens/admin/AdminAnalyticsScreen';
+import { useHotelStore } from '../store/useHotelStore';
 import type { TabParamList } from './types';
 
-const Tab = createBottomTabNavigator<TabParamList>();
+const Tab = createBottomTabNavigator<any>();
 
 export function TabNavigator() {
+  const userRole = useHotelStore((s) => s.userRole);
+
   return (
     <Tab.Navigator
       screenOptions={{
@@ -62,6 +66,13 @@ export function TabNavigator() {
         component={TaskBoardScreen}
         options={{ tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="clipboard-list" color={color} size={size} /> }}
       />
+      {userRole === 'admin' && (
+        <Tab.Screen
+          name="Analytics"
+          component={AdminAnalyticsScreen}
+          options={{ tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="chart-bar" color={color} size={size} /> }}
+        />
+      )}
     </Tab.Navigator>
   );
 }

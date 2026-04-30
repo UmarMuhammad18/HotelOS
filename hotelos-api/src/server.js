@@ -19,17 +19,16 @@ const http    = require('http');
 const express = require('express');
 const cors    = require('cors');
 const helmet  = require('helmet');
-const { WebSocketServer } = require('ws');
-const url     = require('url');
+const { getDb, persist, all, getOne } = require('./db');
 const jwt     = require('jsonwebtoken');
 const bcrypt  = require('bcryptjs');
 const Stripe  = require('stripe');
 
-const { getDb, persist, all, getOne } = require('./db');
 const orchestrator  = require('./agents/orchestrator');
 const pythonAdvisor = require('./agents/pythonAdvisor');
 const simulation    = require('./services/simulation');
 const openclaw      = require('./services/openclaw');
+const { callAgent } = require('./services/aiClient');
 
 const { rateLimit }                        = require('./middleware/rateLimiter');
 const { required, validateAmount, validateTaskId, validateRoomId, sanitiseString } = require('./middleware/validate');
@@ -43,8 +42,10 @@ const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
 const stripe = STRIPE_SECRET ? new Stripe(STRIPE_SECRET) : null;
 
 const app         = express();
-const feedClients = new Set();
-const chatClients = new Set();
+const { initWebSockets, broadcastFeed } = require('./websocket');
+
+const guestRoutes = require('./routes/guest');
+const adminRoutes = require('./routes/admin');
 
 let saveTimer;
 function schedulePersist(db) {
@@ -52,12 +53,7 @@ function schedulePersist(db) {
   saveTimer = setTimeout(() => persist(db), 400);
 }
 
-function broadcastFeed(obj) {
-  const payload = JSON.stringify({ ...obj, timestamp: obj.timestamp || new Date().toISOString() });
-  for (const ws of feedClients) {
-    if (ws.readyState === 1) ws.send(payload);
-  }
-}
+// broadcastFeed is now imported from websocket.js
 
 function safeJson(s, fallback) {
   try { return JSON.parse(s || 'null') ?? fallback; } catch { return fallback; }
@@ -128,6 +124,14 @@ function requireAuth(req, res, next) {
   }
 }
 
+function authorize(roles) {
+  return (req, res, next) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthenticated' });
+    if (!roles.includes(req.user.role)) return res.status(403).json({ error: 'Forbidden: Insufficient permissions' });
+    next();
+  };
+}
+
 const globalLimiter = rateLimit({ windowMs: 60_000, max: 120 });
 const loginLimiter  = rateLimit({ windowMs: 15 * 60_000, max: 10, message: 'Too many login attempts. Try again in 15 minutes.' });
 const payLimiter    = rateLimit({ windowMs: 60_000, max: 20 });
@@ -182,7 +186,7 @@ app.post('/api/login', loginLimiter, required(['email', 'password']), asyncHandl
   const email    = sanitiseString(req.body.email).toLowerCase().trim();
   const password = String(req.body.password);
 
-  const user = getOne(db, 'SELECT * FROM staff_users WHERE email = ?', [email]);
+  const user = getOne(db, 'SELECT * FROM users WHERE email = ?', [email]);
   if (!user || !(await bcrypt.compare(password, user.password_hash)))
     return res.status(401).json({ error: 'Invalid credentials' });
 
@@ -194,9 +198,34 @@ app.post('/api/login', loginLimiter, required(['email', 'password']), asyncHandl
   res.json({ token, user: { id: user.id, email: user.email, name: user.name, role: user.role } });
 }));
 
+app.post('/api/auth/guest-login', loginLimiter, required(['bookingNumber', 'lastName']), asyncHandler(async (req, res) => {
+  const db = await getDb();
+  const bookingNumber = sanitiseString(req.body.bookingNumber);
+  const lastName = sanitiseString(req.body.lastName);
+
+  const guest = getOne(db, 'SELECT * FROM guests WHERE booking_confirmation = ? AND last_name = ?', [bookingNumber, lastName]);
+  if (!guest) return res.status(401).json({ error: 'Invalid booking details' });
+
+  // Find or create a user record for this guest
+  let user = getOne(db, 'SELECT * FROM users WHERE guest_id = ?', [guest.id]);
+  if (!user) {
+    const userId = `u_${guest.id}`;
+    db.run('INSERT INTO users (id, name, role, guest_id) VALUES (?,?,?,?)', [userId, guest.name, 'guest', guest.id]);
+    persist(db);
+    user = { id: userId, name: guest.name, role: 'guest', guest_id: guest.id };
+  }
+
+  const token = jwt.sign(
+    { sub: user.id, name: user.name, role: user.role, guestId: guest.id },
+    JWT_SECRET,
+    { expiresIn: '7d' }
+  );
+  res.json({ token, user: { id: user.id, name: user.name, role: user.role, guestId: guest.id } });
+}));
+
 app.get('/api/me', requireAuth, asyncHandler(async (req, res) => {
   const db   = await getDb();
-  const user = getOne(db, 'SELECT id, email, name, role FROM staff_users WHERE id = ?', [req.user.sub]);
+  const user = getOne(db, 'SELECT id, email, name, role FROM users WHERE id = ?', [req.user.sub]);
   if (!user) return res.status(404).json({ error: 'User not found' });
   res.json(user);
 }));
@@ -488,6 +517,9 @@ app.get('/api/openclaw/marketplace', (_req, res) => {
 });
 
 
+app.use('/api/guest', requireAuth, authorize(['guest']), guestRoutes);
+app.use('/api/admin', requireAuth, authorize(['admin']), adminRoutes);
+
 app.use((req, res) => {
   if (req.path.startsWith('/api')) return res.status(404).json({ error: `Not found: ${req.method} ${req.path}` });
   res.status(404).send('Not found');
@@ -496,40 +528,8 @@ app.use((req, res) => {
 app.use(errorHandler);
 
 const server  = http.createServer(app);
-const wssFeed = new WebSocketServer({ noServer: true });
-const wssChat = new WebSocketServer({ noServer: true });
+const { feedClients, chatClients } = initWebSockets(server, broadcastFeed);
 
-wssFeed.on('connection', (ws) => {
-  feedClients.add(ws);
-  ws.send(JSON.stringify({ type: 'success', agent: 'Orchestrator', message: 'HotelOS backend connected — all systems operational', details: '', timestamp: new Date().toISOString() }));
-  ws.on('close', () => feedClients.delete(ws));
-  ws.on('error', () => feedClients.delete(ws));
-});
-
-wssChat.on('connection', (ws) => {
-  chatClients.add(ws);
-  ws.on('message', (raw) => {
-    let text = '';
-    try { const msg = JSON.parse(raw.toString()); text = msg.message ?? msg.text ?? ''; }
-    catch { text = raw.toString(); }
-    if (text) {
-      broadcastFeed({ type: 'thought', agent: 'Staff Chat', message: `Staff query: "${text.slice(0, 200)}"`, details: '' });
-      orchestrator.processEvent(`Staff Message: ${text}`);
-      ws.send(JSON.stringify({ message: 'I have received your request and forwarded it to the AI Agent system.', timestamp: new Date().toISOString() }));
-    }
-  });
-  ws.on('close', () => chatClients.delete(ws));
-  ws.on('error', () => chatClients.delete(ws));
-});
-
-server.on('upgrade', (request, socket, head) => {
-  const pathname = url.parse(request.url).pathname;
-  if (pathname === '/chat') {
-    wssChat.handleUpgrade(request, socket, head, (ws) => wssChat.emit('connection', ws, request));
-  } else {
-    wssFeed.handleUpgrade(request, socket, head, (ws) => wssFeed.emit('connection', ws, request));
-  }
-});
 
 const shutdown = async (signal) => {
   console.log(`\n[${signal}] Shutting down HotelOS API...`);
@@ -549,7 +549,28 @@ process.on('unhandledRejection', (reason) => { console.error('[unhandledRejectio
 getDb().then((db) => {
   orchestrator.init({ broadcastAgentEvent: broadcastFeed, db });
   pythonAdvisor.init({ broadcastAgentEvent: broadcastFeed, fallback: orchestrator });
-  simulation.initSimulation({ broadcastAgentEvent: broadcastFeed, getDb, orchestratorProcessEvent: orchestrator.processEvent });
+  simulation.initSimulation({ 
+    broadcastAgentEvent: broadcastFeed, 
+    getDb, 
+    orchestratorProcessEvent: async (event) => {
+      const message = typeof event === 'string' ? event : (event.message || event.type);
+      const aiResponse = await callAgent(message, { source: 'simulation', event });
+      
+      broadcastFeed({
+        type: 'thought',
+        agent: aiResponse.agent,
+        message: aiResponse.thought,
+        details: aiResponse.action
+      });
+      
+      broadcastFeed({
+        type: 'decision',
+        agent: aiResponse.agent,
+        message: aiResponse.response,
+        details: JSON.stringify(aiResponse.data)
+      });
+    } 
+  });
 
   server.listen(PORT, () => {
     console.log(`\nHotelOS API listening on http://localhost:${PORT}`);

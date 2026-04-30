@@ -10,13 +10,15 @@ const DB_PATH = process.env.DATABASE_FILE || path.join(__dirname, '..', 'dev.db'
 let dbPromise;
 
 const SCHEMA = `
-CREATE TABLE IF NOT EXISTS staff_users (
+CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
-  email TEXT UNIQUE NOT NULL,
-  password_hash TEXT NOT NULL,
+  email TEXT UNIQUE,
+  password_hash TEXT,
   name TEXT NOT NULL,
-  role TEXT DEFAULT 'staff',
-  created_at TEXT DEFAULT (datetime('now'))
+  role TEXT DEFAULT 'staff', -- 'guest', 'staff', 'admin'
+  guest_id TEXT, -- Link to guests table if role is 'guest'
+  created_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (guest_id) REFERENCES guests(id)
 );
 CREATE TABLE IF NOT EXISTS rooms (
   id TEXT PRIMARY KEY,
@@ -33,6 +35,8 @@ CREATE TABLE IF NOT EXISTS rooms (
 CREATE TABLE IF NOT EXISTS guests (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
+  last_name TEXT,
+  booking_confirmation TEXT UNIQUE,
   email TEXT,
   phone TEXT,
   status TEXT NOT NULL,
@@ -64,7 +68,16 @@ CREATE TABLE IF NOT EXISTS notifications (
   type TEXT NOT NULL,
   read INTEGER DEFAULT 0,
   timestamp TEXT DEFAULT (datetime('now')),
-  staff_id TEXT
+  user_id TEXT
+);
+CREATE TABLE IF NOT EXISTS reviews (
+  id TEXT PRIMARY KEY,
+  guest_id TEXT NOT NULL,
+  rating INTEGER NOT NULL,
+  comment TEXT,
+  response TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (guest_id) REFERENCES guests(id)
 );
 CREATE TABLE IF NOT EXISTS payment_transactions (
   id TEXT PRIMARY KEY,
@@ -97,6 +110,68 @@ async function getDb() {
         db = new SQL.Database();
       }
       db.exec(SCHEMA);
+      
+      // Migration: staff_users -> users
+      try {
+        const check = db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='staff_users'");
+        if (check.length > 0) {
+          console.log('Migrating staff_users to users...');
+          db.exec(`INSERT INTO users (id, email, password_hash, name, role, created_at) 
+                   SELECT id, email, password_hash, name, role, created_at FROM staff_users`);
+          db.exec("DROP TABLE staff_users");
+        }
+      } catch (err) {
+        console.error('Migration error:', err);
+      }
+
+      // Migration: add last_name and booking_confirmation to guests if missing
+      try {
+        db.exec("ALTER TABLE guests ADD COLUMN last_name TEXT");
+      } catch (err) {}
+      try {
+        db.exec("ALTER TABLE guests ADD COLUMN booking_confirmation TEXT");
+      } catch (err) {}
+      
+      // Populate nulls for migration
+      try {
+        const nullGuests = db.exec("SELECT id, name FROM guests WHERE booking_confirmation IS NULL");
+        if (nullGuests.length > 0 && nullGuests[0].values) {
+          console.log('Populating missing guest fields...');
+          for (let i = 0; i < nullGuests[0].values.length; i++) {
+            const id = nullGuests[0].values[i][0];
+            const name = nullGuests[0].values[i][1];
+            const names = name.split(' ');
+            const lastName = names[names.length - 1];
+            const bookingRef = `BK-${1000 + i}`; // Deterministic for migration
+            db.exec(`UPDATE guests SET last_name = '${lastName}', booking_confirmation = '${bookingRef}' WHERE id = '${id}'`);
+          }
+        }
+      } catch (err) {
+        console.error('Error populating guests:', err);
+      }
+
+      // Migration: Ensure admin and demo staff exist
+      try {
+        const bcrypt = require('bcryptjs');
+        const hash = bcrypt.hashSync('admin123', 10);
+        const staffHash = bcrypt.hashSync('staff123', 10);
+        
+        const adminCheck = db.exec("SELECT id FROM users WHERE email = 'admin@hotelos.app'");
+        if (!adminCheck.length || !adminCheck[0].values.length) {
+          console.log('Inserting missing admin user...');
+          db.exec(`INSERT INTO users (id, email, password_hash, name, role) VALUES ('admin_1', 'admin@hotelos.app', '${hash}', 'General Manager', 'admin')`);
+        }
+
+        const staffCheck = db.exec("SELECT id FROM users WHERE email = 'demo@hotelos.app'");
+        if (!staffCheck.length || !staffCheck[0].values.length) {
+          console.log('Inserting missing demo staff user...');
+          db.exec(`INSERT INTO users (id, email, password_hash, name, role) VALUES ('staff_demo_2', 'demo@hotelos.app', '${staffHash}', 'Demo Staff', 'staff')`);
+        }
+      } catch (err) {
+        console.error('Error ensuring admin/staff users:', err);
+      }
+
+
       const cntRes = db.exec('SELECT COUNT(*) FROM rooms');
       const roomCount = cntRes[0]?.values?.[0]?.[0] ?? 0;
       if (roomCount === 0) {
@@ -115,6 +190,7 @@ async function seedFromJson(db) {
   const guestsRaw = JSON.parse(fs.readFileSync(path.join(seedDir, 'guests.json'), 'utf8'));
   const bcrypt = require('bcryptjs');
   const hash = await bcrypt.hash('staff123', 10);
+  const adminHash = await bcrypt.hash('admin123', 10);
 
   const insRoom = db.prepare(
     `INSERT INTO rooms (id, number, floor, type, status, rate, temperature, do_not_disturb, last_cleaned, amenities)
@@ -137,13 +213,19 @@ async function seedFromJson(db) {
   insRoom.free();
 
   const insG = db.prepare(
-    `INSERT INTO guests (id, name, email, phone, status, room_id, loyalty_tier, is_vip, spending, check_in, check_out, preferences, special_requests, purchase_history)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?, '[]')`
+    `INSERT INTO guests (id, name, last_name, booking_confirmation, email, phone, status, room_id, loyalty_tier, is_vip, spending, check_in, check_out, preferences, special_requests, purchase_history)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, '[]')`
   );
   for (const g of guestsRaw) {
+    const names = g.name.split(' ');
+    const lastName = names[names.length - 1];
+    const bookingRef = `BK-${Math.floor(1000 + Math.random() * 9000)}`;
+    
     insG.run([
       g.id,
       g.name,
+      lastName,
+      bookingRef,
       g.email ?? null,
       g.phone ?? null,
       g.status,
@@ -159,18 +241,38 @@ async function seedFromJson(db) {
   }
   insG.free();
 
-  db.run(`INSERT INTO staff_users (id, email, password_hash, name, role) VALUES (?,?,?,?,?)`, [
+  // Create Staff
+  db.run(`INSERT INTO users (id, email, password_hash, name, role) VALUES (?,?,?,?,?)`, [
     'staff_demo',
     'demo@hotelos.app',
     hash,
     'Demo Staff',
-    'manager',
+    'staff',
+  ]);
+
+  // Create Admin
+  db.run(`INSERT INTO users (id, email, password_hash, name, role) VALUES (?,?,?,?,?)`, [
+    'admin_demo',
+    'admin@hotelos.app',
+    adminHash,
+    'General Manager',
+    'admin',
   ]);
 
   db.run(
     `INSERT INTO tasks (id, title, description, status, priority, assigned_to) VALUES (?,?,?,?,?,?)`,
     [`t${Date.now()}`, 'Housekeeping room 104', 'Turndown service', 'pending', 'high', null]
   );
+
+  // Seed some reviews
+  const reviewData = [
+    { id: 'rev1', guest_id: 'g001', rating: 5, comment: 'Amazing service and smooth AI coordination!' },
+    { id: 'rev2', guest_id: 'g002', rating: 4, comment: 'Very comfortable stay, liked the digital twin map.' },
+    { id: 'rev3', guest_id: 'g003', rating: 5, comment: 'The best hotel experience I have had in years.' }
+  ];
+  const insRev = db.prepare(`INSERT INTO reviews (id, guest_id, rating, comment) VALUES (?,?,?,?)`);
+  for (const r of reviewData) insRev.run([r.id, r.guest_id, r.rating, r.comment]);
+  insRev.free();
 }
 
 function rowRoom(r) {
