@@ -12,7 +12,7 @@ export default function DashboardLayout() {
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [isDark, setIsDark] = useDarkMode();
   const location = useLocation();
-  const { user } = useAuthStore();
+  const { user, logout } = useAuthStore();
   const navigate = useNavigate();
   
   useWebSocketClient(WS_URL);
@@ -42,6 +42,11 @@ export default function DashboardLayout() {
   useEffect(() => {
     setSidebarOpen(false);
   }, [location]);
+
+  const handleLogout = () => {
+    logout();
+    navigate('/?login=1', { replace: true });
+  };
 
   return (
     <div className="dashboard-container">
@@ -193,6 +198,21 @@ export default function DashboardLayout() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <NotificationCenter />
           <ConnectionStatus />
+          <button
+            onClick={handleLogout}
+            style={{
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: 6,
+              color: '#e8eaf0',
+              cursor: 'pointer',
+              fontSize: 13,
+              fontWeight: 600,
+              padding: '8px 12px',
+            }}
+          >
+            Switch User
+          </button>
           <button
             onClick={() => setIsDark(!isDark)}
             style={{ background: 'transparent', border: 'none', fontSize: 18, cursor: 'pointer', color: '#fff' }}

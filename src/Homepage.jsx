@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import useAuthStore from './stores/useAuthStore';
@@ -17,8 +17,26 @@ export default function Homepage() {
 
   const { login } = useAuthStore();
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const shouldShowLogin = params.get('login') === '1';
+    const shouldLogout = params.get('logout') === '1';
+
+    if (shouldLogout) {
+      localStorage.removeItem('hotelos_user');
+      localStorage.removeItem('hotelos_token');
+      setShowLogin(true);
+      navigate('/', { replace: true });
+      return;
+    }
+
+    if (shouldShowLogin) {
+      setShowLogin(true);
+      return;
+    }
+
     try {
       const savedUser = JSON.parse(localStorage.getItem('hotelos_user') || 'null');
       const role = normalizeRole(savedUser?.role);
@@ -35,7 +53,7 @@ export default function Homepage() {
       localStorage.removeItem('hotelos_user');
       localStorage.removeItem('hotelos_token');
     }
-  }, [navigate]);
+  }, [location.search, navigate]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
