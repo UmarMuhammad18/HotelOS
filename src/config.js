@@ -14,18 +14,9 @@ const getApiUrl = () => {
       return 'http://localhost:8080';
     }
     
-    // Production on Render: Derive backend URL from frontend URL
-    // Frontend: hotelos-jp70.onrender.com → Backend: https://hotelos-api.onrender.com
-    // Or if separate: hotelos-frontend-xxx.onrender.com → https://hotelos-api-xxx.onrender.com
+    // Production on Render: the API service in render.yml is named hotelos-api.
     if (hostname.includes('onrender.com')) {
-      // Try to extract suffix from frontend URL
-      const match = hostname.match(/^([^.]+)(-\w+)?\.onrender\.com$/);
-      if (match) {
-        const suffix = match[2] || ''; // e.g., '-jp70'
-        return `https://hotelos-api${suffix}.onrender.com`;
-      }
-      // Fallback for direct backend URL
-      return 'https://hotelos-api-backend.onrender.com';
+      return 'https://hotelos-api.onrender.com';
     }
   }
   

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import ActivityFeed from '../components/ActivityFeed';
 import ControlPanel from '../components/ControlPanel';
@@ -31,6 +32,16 @@ function AgentCard({ name, emoji, status, task }) {
     </div>
   );
 }
+
+const departments = [
+  { id: 'concierge', name: 'Concierge', summary: 'Guest requests, reservations, local recommendations', color: '#8b5cf6' },
+  { id: 'food_beverage', name: 'Food & Beverage', summary: 'Restaurant, bar, room service, menu operations', color: '#f59e0b' },
+  { id: 'housekeeping', name: 'Housekeeping', summary: 'Room readiness, linen, cleaning schedules', color: '#10b981' },
+  { id: 'maintenance', name: 'Maintenance', summary: 'Repairs, inspections, equipment uptime', color: '#ef4444' },
+  { id: 'front_office', name: 'Front Office', summary: 'Check-in, check-out, billing and reception', color: '#06b6d4' },
+  { id: 'guest_relations', name: 'Guest Relations', summary: 'Feedback, service recovery, follow-ups', color: '#ec4899' },
+  { id: 'guest_experience', name: 'Guest Experience', summary: 'Personalization, events, VIP moments', color: '#6366f1' },
+];
 
 export default function DashboardHome() {
   const [clock, setClock] = useState('');
@@ -151,6 +162,54 @@ export default function DashboardHome() {
           margin-bottom: 32px;
         }
 
+        .department-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+          gap: 12px;
+          margin-bottom: 32px;
+        }
+
+        .department-card {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          min-height: 132px;
+          background: #0e1117;
+          border: 1px solid rgba(255,255,255,0.07);
+          border-top: 3px solid var(--dept-color);
+          border-radius: 8px;
+          padding: 16px;
+          color: #e8eaf0;
+          text-decoration: none;
+          transition: transform 0.2s, border-color 0.2s, background 0.2s;
+        }
+
+        .department-card:hover {
+          transform: translateY(-2px);
+          border-color: rgba(255,255,255,0.16);
+          background: rgba(255,255,255,0.035);
+        }
+
+        .department-name {
+          font-size: 15px;
+          font-weight: 700;
+        }
+
+        .department-summary {
+          flex: 1;
+          font-size: 12px;
+          line-height: 1.5;
+          color: #8892a4;
+        }
+
+        .department-open {
+          font-family: 'Space Mono', monospace;
+          font-size: 10px;
+          color: var(--dept-color);
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+        }
+
         .chart-box {
           background: #0e1117;
           border: 1px solid rgba(255,255,255,0.07);
@@ -233,6 +292,22 @@ export default function DashboardHome() {
       </div>
 
       <ControlPanel />
+
+      <div className="section-label">Department Workspaces</div>
+      <div className="department-grid">
+        {departments.map((dept) => (
+          <Link
+            key={dept.id}
+            to={`/dashboard/department/${dept.id}`}
+            className="department-card"
+            style={{ '--dept-color': dept.color }}
+          >
+            <div className="department-name">{dept.name}</div>
+            <div className="department-summary">{dept.summary}</div>
+            <div className="department-open">Open department</div>
+          </Link>
+        ))}
+      </div>
 
       <div className="section-label">Live Metrics</div>
       <div className="metrics-grid">

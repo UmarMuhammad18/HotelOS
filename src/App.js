@@ -7,6 +7,7 @@ import AgentsPage from './pages/AgentsPage';
 import ChatPage from './pages/ChatPage';
 import TaskBoard from './pages/TaskBoard';
 import GuestProfile from './pages/GuestProfile';
+import DepartmentPage from './pages/DepartmentPage';
 
 // Guest Pages
 import GuestLayout from './layouts/GuestLayout';
@@ -20,7 +21,7 @@ import GuestProfilePage from './pages/guest/GuestProfile';
 import AdminOverview from './pages/admin/AdminOverview';
 import RevenueAnalytics from './pages/admin/RevenueAnalytics';
 import ReviewsManager from './pages/admin/ReviewsManager';
-import DepartmentOverview from './pages/admin/DepartmentOverview';
+import AdminDepartments from './pages/AdminDepartments';
 import SystemHealth from './pages/admin/SystemHealth';
 import IssuesResolved from './pages/admin/IssuesResolved';
 
@@ -49,7 +50,7 @@ function App() {
             <Route index element={<AdminOverview />} />
             <Route path="revenue" element={<RevenueAnalytics />} />
             <Route path="reviews" element={<ReviewsManager />} />
-            <Route path="departments" element={<DepartmentOverview />} />
+            <Route path="departments" element={<AdminDepartments />} />
             <Route path="system" element={<SystemHealth />} />
             <Route path="issues" element={<IssuesResolved />} />
           </Route>
@@ -64,6 +65,7 @@ function App() {
             <Route path="chat" element={<ChatPage />} />
             <Route path="tasks" element={<TaskBoard />} />
             <Route path="guest/:name" element={<GuestProfile />} />
+            <Route path="department/:dept" element={<DepartmentPage />} />
           </Route>
         </Route>
       </Routes>
