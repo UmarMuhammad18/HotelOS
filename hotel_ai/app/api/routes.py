@@ -57,6 +57,7 @@ from app.api.schemas import (
 from app.config import get_settings
 from app.llm.client import LLMClient
 from app.memory.guest_memory import GuestMemory
+from app.memory.outcome_store import OutcomeStore
 from app.models import (
     AgentEvent,
     AgentEventType,
@@ -65,6 +66,13 @@ from app.models import (
     HotelEvent,
     Plan,
 )
+from app.models.outcome import OutcomeStatus
+from app.services.metrics import (
+    compute_period_metrics,
+    default_period,
+    render_digest,
+)
+from app.services.outcome_recorder import OutcomeRecorder
 from app.utils.idempotency import IdempotencyCache
 from app.utils.rate_limit import RateLimiter
 
@@ -106,6 +114,14 @@ def get_memory() -> GuestMemory:  # pragma: no cover
 
 def get_llm() -> LLMClient:  # pragma: no cover
     raise RuntimeError("LLM dependency not wired")
+
+
+def get_outcome_store() -> OutcomeStore:  # pragma: no cover
+    raise RuntimeError("OutcomeStore dependency not wired")
+
+
+def get_outcome_recorder() -> OutcomeRecorder:  # pragma: no cover
+    raise RuntimeError("OutcomeRecorder dependency not wired")
 
 
 # --- helpers ------------------------------------------------------------------
@@ -208,13 +224,23 @@ async def advise_event(
     response_model=TaskStatusAdviseResponse,
     dependencies=[Depends(require_auth)],
 )
-def advise_task_status(body: TaskStatusAdviseRequest) -> TaskStatusAdviseResponse:
-    """Pure templating — no LLM, no async needed."""
+def advise_task_status(
+    body: TaskStatusAdviseRequest,
+    recorder: OutcomeRecorder = Depends(get_outcome_recorder),
+) -> TaskStatusAdviseResponse:
+    """Pure templating — no LLM, no async needed.
+
+    Also writes an outcome-telemetry status transition so we can later
+    compute end-to-end resolution times. Telemetry failure does NOT
+    block the response — the recorder swallows its own errors.
+    """
     lang = body.stay.guest.language
     events: list[AgentEvent] = []
     guest_reply = None
+    outcome_status: OutcomeStatus | None = None
 
     if body.status == "in_progress":
+        outcome_status = OutcomeStatus.IN_PROGRESS
         events.append(AgentEvent(
             agent="Orchestrator",
             type=AgentEventType.EXECUTION,
@@ -226,6 +252,7 @@ def advise_task_status(body: TaskStatusAdviseRequest) -> TaskStatusAdviseRespons
             locale=lang,
         )
     elif body.status == "completed":
+        outcome_status = OutcomeStatus.COMPLETED
         events.append(AgentEvent(
             agent="Orchestrator",
             type=AgentEventType.SUCCESS,
@@ -237,6 +264,7 @@ def advise_task_status(body: TaskStatusAdviseRequest) -> TaskStatusAdviseRespons
             locale=lang,
         )
     elif body.status == "cancelled":
+        outcome_status = OutcomeStatus.CANCELLED
         events.append(AgentEvent(
             agent="Orchestrator",
             type=AgentEventType.ALERT,
@@ -246,6 +274,24 @@ def advise_task_status(body: TaskStatusAdviseRequest) -> TaskStatusAdviseRespons
         guest_reply = GuestReply(
             message="Your request has been cancelled. Let us know if there's anything else.",
             locale=lang,
+        )
+
+    # Heuristic: if staff annotated the status update with note containing
+    # "no followup" or "ai resolved", flag the outcome record accordingly.
+    # Customers can build smarter signals later (e.g. an explicit field in
+    # their staff app), but this gives us non-zero data on day 1.
+    needed_followup: bool | None = None
+    if outcome_status == OutcomeStatus.COMPLETED and body.note:
+        note_lc = body.note.lower()
+        if "no followup" in note_lc or "no follow-up" in note_lc \
+                or "ai resolved" in note_lc:
+            needed_followup = False
+
+    if outcome_status is not None:
+        recorder.record_status(
+            task_id=body.task_id,
+            new_status=outcome_status,
+            needed_followup=needed_followup,
         )
 
     plan = Plan(
@@ -385,3 +431,66 @@ def webhook_test(
         payload = {}
     echo = str(payload.get("echo", "pong"))
     return WebhookTestResponse(received=True, echo=echo)
+
+
+# --- metrics -----------------------------------------------------------------
+
+
+@router.get(
+    "/metrics/period",
+    dependencies=[Depends(require_auth)],
+)
+def metrics_period(
+    days: int = Query(7, ge=1, le=365, description="Rolling window size"),
+    property_id: str | None = Query(
+        None,
+        description="Filter to one property. None = all properties.",
+    ),
+    store: OutcomeStore = Depends(get_outcome_store),
+) -> dict:
+    """Aggregate operational metrics for a rolling N-day window ending now.
+
+    The default 7-day window is the GM's natural reporting cadence.
+    Bound at 365 days because we don't expect (and don't optimise for)
+    multi-year scans on the JSON store; production deployments should
+    use Postgres before that becomes relevant.
+
+    Returns a deterministic JSON dump with totals, latency stats per
+    department, safety counts, and a transparent staff-time-saved
+    estimate. Every assumption used in the estimate is surfaced in the
+    response so it can be audited or recalibrated by the customer.
+    """
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    start, end = default_period(now, days=days)
+    records = store.list_in_range(start, end, property_id=property_id)
+    metrics = compute_period_metrics(records, start, end, property_id)
+    return metrics.to_dict()
+
+
+@router.get(
+    "/metrics/digest",
+    dependencies=[Depends(require_auth)],
+)
+def metrics_digest(
+    days: int = Query(7, ge=1, le=365),
+    property_id: str | None = Query(None),
+    store: OutcomeStore = Depends(get_outcome_store),
+) -> dict:
+    """Human-readable rendering of the same period metrics.
+
+    Designed to be wired straight into a weekly email — call it from a
+    cron job, take the `digest` field, send it. The `metrics` field is
+    the full structured response for anyone who wants to render a
+    chart instead of (or in addition to) the prose digest.
+    """
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    start, end = default_period(now, days=days)
+    records = store.list_in_range(start, end, property_id=property_id)
+    metrics = compute_period_metrics(records, start, end, property_id)
+    return {
+        "digest": render_digest(metrics),
+        "metrics": metrics.to_dict(),
+    }
+

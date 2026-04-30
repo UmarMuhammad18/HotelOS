@@ -36,7 +36,12 @@ from __future__ import annotations
 
 import re
 from datetime import datetime, timedelta
-from typing import Iterable
+from typing import TYPE_CHECKING, Iterable
+
+if TYPE_CHECKING:
+    # Avoid a runtime import cycle (services -> models -> agents).
+    # Telemetry is optional; orchestrator works without it.
+    from app.services.outcome_recorder import OutcomeRecorder
 
 try:
     # Python 3.9+ stdlib
@@ -269,9 +274,34 @@ _QUIET_DEFERRABLE: frozenset[Department] = frozenset({
 
 
 class Orchestrator:
-    def __init__(self, llm: LLMClient, memory: GuestMemory) -> None:
+    def __init__(
+        self,
+        llm: LLMClient,
+        memory: GuestMemory,
+        outcome_recorder: "OutcomeRecorder | None" = None,
+        property_id: str = "default",
+    ) -> None:
+        """Build the orchestrator brain.
+
+        Parameters
+        ----------
+        llm:
+            LLM client used for classification and translation.
+        memory:
+            GuestMemory for hydration and learning.
+        outcome_recorder:
+            Optional. When provided, the orchestrator writes one
+            OutcomeRecord per task created so we can later compute
+            metrics. None disables telemetry (handy for tests that
+            don't care about it).
+        property_id:
+            Tag every record with this. Useful when the same Python
+            service backs multiple hotels in a portfolio.
+        """
         self.llm = llm
         self.memory = memory
+        self._outcome_recorder = outcome_recorder
+        self._property_id = property_id
 
         housekeeping = HousekeepingAgent(llm)
         concierge = ConciergeAgent(llm)
@@ -344,6 +374,15 @@ class Orchestrator:
         )
         plan.events.extend(plan_events)
 
+        # Collect (action, fragment) pairs so we can pick the most
+        # appropriate guest_reply *after* all fragments are built —
+        # not just "whoever ran first wins." Specifically:
+        #   - When abuse was flagged, Security/Guest Relations replies
+        #     beat any earlier agent's reply (a chipper Front Desk
+        #     "we'll follow up shortly" is exactly wrong here).
+        #   - In emergencies, no chat reply at all (handled by agents).
+        #   - Otherwise, first non-empty reply wins (preserves prior
+        #     behaviour for towels/AC/concierge events).
         per_action_fragments: list[tuple[DepartmentAction, PlanFragment]] = []
         for action in actions:
             agent = self._agents.get(action.department)
@@ -376,6 +415,26 @@ class Orchestrator:
                 summary=f"{recorded_intent}: {recorded_summary[:120]}",
             )
         )
+
+        # 6. Outcome telemetry — write one OutcomeRecord per task created.
+        # Wrapped defensively so a telemetry failure never breaks event
+        # handling. The recorder itself also catches exceptions, but we
+        # belt-and-brace at the call site so a misconfigured recorder
+        # can't crash a real guest interaction.
+        if self._outcome_recorder is not None:
+            try:
+                self._outcome_recorder.record_plan(
+                    plan=plan,
+                    event=event,
+                    stay=stay,
+                    actions=actions,
+                    property_id=self._property_id,
+                )
+            except Exception as exc:  # noqa: BLE001
+                log.error(
+                    "outcome_record_call_failed",
+                    extra={"event_id": event.id, "error": str(exc)},
+                )
 
         return plan
 
@@ -715,21 +774,44 @@ class Orchestrator:
         return f"Routing to: {depts}"
 
     @staticmethod
-    def _pick_guest_reply(pairs):
+    def _pick_guest_reply(
+        pairs: list[tuple[DepartmentAction, "PlanFragment"]],
+    ) -> "GuestReply | None":
         """Choose the single guest_reply to send back over the chat.
 
-        When abuse is flagged, Security/Guest Relations replies beat any
-        earlier agent's reply. Otherwise, first non-empty reply wins.
+        Rules, in order:
+          1. If any action carries the abuse marker, prefer Security or
+             Guest Relations replies (they're calm/de-escalating). This
+             beats whatever earlier agent (e.g. Front Desk) might have
+             produced.
+          2. Otherwise, first non-empty reply from the action list wins.
+             This preserves the previous behaviour for normal flows.
+          3. None if nobody had a reply.
+
+        We deliberately don't pick "the highest-priority agent's reply"
+        as a general rule because for ordinary high-priority work
+        (broken AC) the Maintenance reply is the right one to surface,
+        and it's also the first action in those cases. The abuse case
+        is the one where reply-order doesn't match the routing order
+        we want for the guest.
         """
         from app.agents.security import ABUSE_MARKER
         from app.models import Department
 
-        any_abuse = any(ABUSE_MARKER in (a.details or "") for a, _ in pairs)
+        any_abuse = any(
+            ABUSE_MARKER in (a.details or "") for a, _ in pairs
+        )
+
         if any_abuse:
-            for dept in (Department.SECURITY, Department.GUEST_RELATIONS):
+            preferred = (Department.SECURITY, Department.GUEST_RELATIONS)
+            for dept in preferred:
                 for action, frag in pairs:
                     if action.department == dept and frag.guest_reply:
                         return frag.guest_reply
+            # No security/GR reply produced (shouldn't happen given
+            # policy fan-out, but fall through gracefully).
+
+        # Default: first non-empty reply wins.
         for _action, frag in pairs:
             if frag.guest_reply:
                 return frag.guest_reply

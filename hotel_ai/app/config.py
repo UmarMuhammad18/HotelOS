@@ -41,10 +41,22 @@ class Settings(BaseSettings):
         default="./data/guest_memory.json", alias="GUEST_MEMORY_PATH"
     )
 
+    # File path used by JSONFileOutcomeStore. Ignored when DATABASE_URL
+    # is set. Outcome records contain operational metadata (no PII), so
+    # they can live longer than guest memory for benchmarking.
+    outcome_store_path: str = Field(
+        default="./data/outcomes.json", alias="OUTCOME_STORE_PATH"
+    )
+
     # When set, the service uses Postgres instead of JSON for guest
     # memory. Format: postgresql://user:pass@host:5432/dbname
     # If empty, JSONFileStore is used (fine for single-worker dev).
     database_url: str = Field(default="", alias="DATABASE_URL")
+
+    # Tag every outcome record with this property identifier. For
+    # multi-property portfolios, run one service per property OR one
+    # service that receives a `property_id` per event (future work).
+    property_id: str = Field(default="default", alias="PROPERTY_ID")
 
     # --- Downstream services owned by backend team ---
     backend_notifications_url: str = Field(default="", alias="BACKEND_NOTIFICATIONS_URL")
