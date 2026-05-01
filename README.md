@@ -240,7 +240,9 @@ HotelOS was built for the Encode Hackathon Agent Track. The Python AI service, a
 
 **Live demo:** https://hotel-os-blond.vercel.app  
 **GitHub:** https://github.com/UmarMuhammad18/HotelOS
-
+Guest Login: BK-1000  and Lastname: Harrington
+Admin: admin@hotelos.app and Password: admin123
+Staff: demo@hotelos.ap and Password: demo123
 ---
 
 <div align="center">
