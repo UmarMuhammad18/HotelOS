@@ -5,6 +5,7 @@ Memory updates happen at well-defined points, not on every LLM call:
   1. After a successful request (tag with intent + content)
   2. On stay completion (summary)
   3. On explicit guest feedback / survey responses
+  4. Nightly / on-demand preference learning (Phase 3)
 
 We do NOT let the LLM mutate memory directly. Mutations go through typed
 methods so we can audit them.
@@ -23,6 +24,11 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
+from app.memory.preference_learner import (
+    learn_preferences_from_requests,
+    merge_preferences,
+    proactive_tasks_from_preferences,
+)
 from app.memory.store import MemoryStore
 from app.models.guest import GuestProfile
 from app.utils.logging import get_logger
@@ -224,3 +230,69 @@ class GuestMemory:
         if not bits:
             return f"{p.full_name} — no notable preferences or history yet."
         return f"{p.full_name}: " + "; ".join(bits) + "."
+
+    # --- Phase 3: learning, diff, proactive, stay-complete ---------------------
+
+    def learn_preferences(self, guest_id: str) -> dict[str, Any]:
+        """Run deterministic preference learning for one guest.
+
+        Merges newly learned keys into the profile and returns the
+        *diff* (keys that were added or changed). Empty dict means
+        nothing new was learned.
+        """
+        p = self._store.get(guest_id)
+        if not p:
+            return {}
+        learned = learn_preferences_from_requests(
+            p.past_requests,
+            existing=p.preferences,
+        )
+        if not learned:
+            return {}
+        p.preferences = merge_preferences(p.preferences, learned)
+        p.updated_at = _utcnow()
+        self._store.upsert(p)
+        log.info(
+            "preferences_learned",
+            extra={"guest_id": guest_id, "keys": list(learned.keys())},
+        )
+        return learned
+
+    def memory_diff(self, guest_id: str) -> dict[str, Any]:
+        """What would learning surface right now, without writing?
+
+        Safe for the frontend "we remembered: X" surface — call this
+        after a stay or on demand to preview learned preferences.
+        """
+        p = self._store.get(guest_id)
+        if not p:
+            return {}
+        return learn_preferences_from_requests(
+            p.past_requests,
+            existing=p.preferences,
+        )
+
+    def proactive_checkin_tasks(self, guest_id: str) -> list[dict[str, str]]:
+        """Suggest pre-arrival tasks from known preferences.
+
+        Does not create tasks itself — returns suggestions for the
+        backend / staff dashboard to act on at check-in.
+        """
+        p = self._store.get(guest_id)
+        if not p or not p.preferences:
+            return []
+        return proactive_tasks_from_preferences(p.preferences)
+
+    def complete_stay(self, guest_id: str) -> str:
+        """Mark a stay as complete: learn preferences, return final summary.
+
+        Intended for out-of-band / checkout webhooks. Learning runs
+        first so the summary includes any newly materialised prefs.
+        """
+        self.learn_preferences(guest_id)
+        summary = self.stay_summary(guest_id)
+        log.info(
+            "stay_completed",
+            extra={"guest_id": guest_id, "summary_len": len(summary)},
+        )
+        return summary

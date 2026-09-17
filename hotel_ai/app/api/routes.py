@@ -48,6 +48,11 @@ from app.api.schemas import (
     EmergencyAdviseResponse,
     ForgetGuestResponse,
     GuestMemoryResponse,
+    LearnPreferencesResponse,
+    MemoryDiffResponse,
+    ProactiveCheckinResponse,
+    ProactiveTask,
+    StayCompleteResponse,
     StaySummaryResponse,
     TaskStatusAdviseRequest,
     TaskStatusAdviseResponse,
@@ -408,7 +413,7 @@ def stay_summary(
     return StaySummaryResponse(guest_id=guest_id, summary=summary)
 
 
-# --- webhooks ----------------------------------------------------------------
+# --- webhooks -----------------------------------------------------------------
 
 
 @router.post(
@@ -431,6 +436,98 @@ def webhook_test(
         payload = {}
     echo = str(payload.get("echo", "pong"))
     return WebhookTestResponse(received=True, echo=echo)
+
+
+# --- Phase 3: memory learning -------------------------------------------------
+
+
+@router.get(
+    "/guests/{guest_id}/memory/diff",
+    response_model=MemoryDiffResponse,
+    dependencies=[Depends(require_auth)],
+)
+def guest_memory_diff(
+    guest_id: str,
+    memory: GuestMemory = Depends(get_memory),
+) -> MemoryDiffResponse:
+    """Preview preferences that learning would materialise (read-only).
+
+    Frontend can render "we remembered: extra towels, quiet room" without
+    writing to the profile. Call POST .../learn to persist.
+    """
+    learned = memory.memory_diff(guest_id)
+    if not learned:
+        msg = "Nothing new to learn from current history."
+    else:
+        keys = ", ".join(sorted(learned.keys()))
+        msg = f"We can remember: {keys}."
+    return MemoryDiffResponse(guest_id=guest_id, learned=learned, message=msg)
+
+
+@router.post(
+    "/guests/{guest_id}/memory/learn",
+    response_model=LearnPreferencesResponse,
+    dependencies=[Depends(require_auth)],
+)
+def learn_guest_preferences(
+    guest_id: str,
+    memory: GuestMemory = Depends(get_memory),
+) -> LearnPreferencesResponse:
+    """Run preference learning and persist new keys onto the profile.
+
+    Safe to call from a nightly cron or after checkout. Idempotent —
+    a second call with no new history returns an empty `learned` dict.
+    """
+    learned = memory.learn_preferences(guest_id)
+    profile = memory.get_profile(guest_id)
+    return LearnPreferencesResponse(
+        guest_id=guest_id,
+        learned=learned,
+        profile=profile,
+    )
+
+
+@router.get(
+    "/guests/{guest_id}/proactive-checkin",
+    response_model=ProactiveCheckinResponse,
+    dependencies=[Depends(require_auth)],
+)
+def proactive_checkin(
+    guest_id: str,
+    memory: GuestMemory = Depends(get_memory),
+) -> ProactiveCheckinResponse:
+    """Suggest pre-arrival tasks from known preferences.
+
+    Backend / staff dashboard can turn these into real tasks at check-in.
+    Does not create tasks itself.
+    """
+    raw = memory.proactive_checkin_tasks(guest_id)
+    tasks = [ProactiveTask(**t) for t in raw]
+    return ProactiveCheckinResponse(guest_id=guest_id, tasks=tasks)
+
+
+@router.post(
+    "/guests/{guest_id}/stay-complete",
+    response_model=StayCompleteResponse,
+    dependencies=[Depends(require_auth)],
+)
+def stay_complete(
+    guest_id: str,
+    memory: GuestMemory = Depends(get_memory),
+) -> StayCompleteResponse:
+    """Checkout hook: learn preferences, return final stay summary.
+
+    Wire from PMS checkout / Node webhook. Learning runs before the
+    summary so newly materialised prefs appear in the text.
+    """
+    # Capture diff before write so the response can show what was learned.
+    pending = memory.memory_diff(guest_id)
+    summary = memory.complete_stay(guest_id)
+    return StayCompleteResponse(
+        guest_id=guest_id,
+        summary=summary,
+        learned=pending,
+    )
 
 
 # --- metrics -----------------------------------------------------------------
@@ -493,4 +590,3 @@ def metrics_digest(
         "digest": render_digest(metrics),
         "metrics": metrics.to_dict(),
     }
-
