@@ -70,6 +70,7 @@ from app.models import (
     AgentEventType,
     Department,
     DepartmentAction,
+    GuestReply,
     HotelEvent,
     MemoryUpdate,
     Plan,
@@ -222,7 +223,7 @@ class Orchestrator:
             AgentEvent(
                 agent="Orchestrator",
                 type=AgentEventType.THOUGHT,
-                message=f"Event received via {event.channel.value}: \"{event.text[:140]}\"",
+                message=f'Event received via {event.channel.value}: "{event.text[:140]}"',
                 details=f"guest_id={stay.guest.guest_id} room={stay.room_number}",
             ),
             AgentEvent(
@@ -476,7 +477,8 @@ class Orchestrator:
                 )
 
             if a.department == Department.REVENUE and new_priority not in (
-                Priority.LOW, Priority.NORMAL,
+                Priority.LOW,
+                Priority.NORMAL,
             ):
                 new_priority = Priority.NORMAL
                 new_details = f"{new_details} [revenue priority capped at normal]"
@@ -573,10 +575,6 @@ class Orchestrator:
                 requires_coordination_with=[],
             )
 
-        if vip and Department.GUEST_RELATIONS not in departments_present and not emergency:
-            # Light-touch VIP awareness — only if nothing else already routed GR
-            pass  # VIP priority bump already applied above; avoid noise fan-out
-
     @staticmethod
     def _top_priority(actions: list[DepartmentAction]) -> Priority:
         order = [
@@ -610,11 +608,8 @@ class Orchestrator:
 
     @staticmethod
     def _pick_guest_reply(
-        pairs: list[tuple[DepartmentAction, "PlanFragment"]],
-    ) -> "GuestReply | None":
-        from app.agents.security import ABUSE_MARKER
-        from app.models import Department, GuestReply  # noqa: F401
-
+        pairs: list[tuple[DepartmentAction, PlanFragment]],
+    ) -> GuestReply | None:
         any_abuse = any(ABUSE_MARKER in (a.details or "") for a, _ in pairs)
 
         if any_abuse:
@@ -630,6 +625,7 @@ class Orchestrator:
         return None
 
     @staticmethod
-    def _now_utc() -> "datetime":
+    def _now_utc() -> datetime:
         from datetime import datetime, timezone
+
         return datetime.now(timezone.utc)

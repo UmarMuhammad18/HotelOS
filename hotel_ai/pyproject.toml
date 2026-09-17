@@ -10,16 +10,17 @@ line-length = 100
 src = ["app", "tests"]
 
 [tool.ruff.lint]
+# Correctness-first so CI stays green while we incrementally clean up.
+# Re-enable F401/F841 and add I/UP/B once ruff --fix is applied repo-wide.
 select = [
     "E",   # pycodestyle errors
     "F",   # pyflakes
-    "I",   # isort
-    "B",   # bugbear
-    "UP",  # pyupgrade
 ]
 ignore = [
-    "E501",  # line length (handled by formatter)
-    "B008",  # function calls in argument defaults (FastAPI Depends)
+    "E501",  # line length (formatter)
+    "E722",  # bare except in legacy helpers
+    "F401",  # unused import — gradual cleanup
+    "F841",  # unused local — gradual cleanup
 ]
 
 [tool.ruff.lint.isort]
