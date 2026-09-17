@@ -95,6 +95,46 @@ class BaseAgent(ABC):
             details=details,
         )
 
+    def _preference_note(self, stay: StayContext) -> str:
+        """Short clause from known preferences, or empty string."""
+        prefs = getattr(stay.guest, "preferences", None) or {}
+        if not prefs:
+            return ""
+        # Surface at most two human-friendly preference hints
+        labels = {
+            "extra_towels": "extra towels",
+            "extra_blankets": "extra blankets",
+            "quiet_room": "a quiet room",
+            "pillow": "your preferred pillow",
+            "late_checkout": "late checkout",
+            "early_checkin": "early check-in",
+            "allergy_aware": "your allergy preferences",
+        }
+        hints: list[str] = []
+        for key, label in labels.items():
+            if key in prefs and prefs[key]:
+                if key == "pillow" and isinstance(prefs[key], str) and prefs[key] not in (
+                    "noted",
+                    True,
+                ):
+                    hints.append(f"{prefs[key]} pillow")
+                else:
+                    hints.append(label)
+            if len(hints) >= 2:
+                break
+        if not hints:
+            return ""
+        return " We've noted your preference for " + " and ".join(hints) + "."
+
     def _reply(self, english_message: str, stay: StayContext) -> GuestReply:
-        """Render a guest reply in the guest's preferred language."""
-        return localized_reply(self.llm, english_message, stay.guest.language)
+        """Render a guest reply in the guest's preferred language.
+
+        Optionally appends a short preference acknowledgement so returning
+        guests feel remembered without a second LLM call.
+        """
+        note = self._preference_note(stay)
+        message = english_message.rstrip()
+        if note and not message.endswith("."):
+            message += "."
+        message = (message + note).strip()
+        return localized_reply(self.llm, message, stay.guest.language)

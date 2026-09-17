@@ -63,6 +63,7 @@ from app.agents.security import ABUSE_MARKER, SecurityAgent
 from app.agents.spa import SpaAgent
 from app.config import get_settings
 from app.llm.client import LLMClient
+from app.llm.validate import normalize_classify_result
 from app.memory.guest_memory import GuestMemory
 from app.models import (
     ALLOWED_LLM_DEPARTMENTS,
@@ -318,8 +319,8 @@ class Orchestrator:
 
         try:
             raw = self.llm.classify_json(system=CLASSIFY_SYSTEM, user=user_message)
-            if not raw.get("actions"):
-                raise ValueError("empty actions")
+            # Normalise aliases / clamp confidence / drop bad actions
+            raw = normalize_classify_result(raw)
             kept = []
             for a in raw["actions"]:
                 try:
@@ -337,7 +338,7 @@ class Orchestrator:
                         extra={"action": a, "error": str(e)},
                     )
             if not kept:
-                raise ValueError("no valid actions")
+                raise ValueError("no valid actions after validation")
             raw["actions"] = kept
             return raw
         except Exception as e:  # noqa: BLE001

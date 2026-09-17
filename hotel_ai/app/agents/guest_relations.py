@@ -33,6 +33,27 @@ class GuestRelationsAgent(BaseAgent):
                 room=stay.room_number,
             ),
         )
+
+        # For recovery / frustration paths, send a calm acknowledgement.
+        # For pure VIP awareness fan-outs, stay silent (staff reaches out).
+        details_lc = (action.details or "").lower()
+        summary_lc = (action.summary or "").lower()
+        is_recovery = any(
+            k in details_lc or k in summary_lc
+            for k in ("frustrat", "recover", "complaint", "disappoint", "repeat")
+        )
+        guest_reply = None
+        if is_recovery:
+            name = stay.guest.full_name.split()[0] if stay.guest.full_name else "there"
+            guest_reply = self._reply(
+                (
+                    f"We're truly sorry for the inconvenience, {name}. "
+                    f"A Guest Experience manager is personally following up "
+                    f"on this for room {stay.room_number}."
+                ),
+                stay,
+            )
+
         return PlanFragment(
             events=[
                 self._thought(
@@ -42,6 +63,5 @@ class GuestRelationsAgent(BaseAgent):
                 self._decision("Queueing a Guest Experience check-in"),
             ],
             tool_calls=[tool],
-            # No guest_reply — GR reaches the guest via their own channel
-            # (phone, in-person, follow-up survey).
+            guest_reply=guest_reply,
         )

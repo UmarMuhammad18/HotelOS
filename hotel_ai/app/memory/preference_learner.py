@@ -16,8 +16,6 @@ import re
 from collections import Counter
 from typing import Any
 
-from app.memory.guest_memory import decode_request
-
 # Intent → preference key when the guest asks for the same thing often.
 _INTENT_PREFERENCE: dict[str, str] = {
     "amenity_request": "frequent_amenity_requests",
@@ -30,12 +28,13 @@ _INTENT_PREFERENCE: dict[str, str] = {
 }
 
 # Keyword patterns inside request summaries → concrete preferences.
+# More specific rules must come before generic ones (first match wins).
 _KEYWORD_RULES: list[tuple[re.Pattern[str], str, Any]] = [
     (re.compile(r"\b(?:extra\s+)?towels?\b", re.I), "extra_towels", True),
-    (re.compile(r"\b(?:foam|soft|firm)\s+pillow", re.I), "pillow", "noted"),
     (re.compile(r"\bfoam\s+pillow", re.I), "pillow", "foam"),
     (re.compile(r"\bsoft\s+pillow", re.I), "pillow", "soft"),
     (re.compile(r"\bfirm\s+pillow", re.I), "pillow", "firm"),
+    (re.compile(r"\bpillow", re.I), "pillow", "noted"),
     (re.compile(r"\bquiet\s+room\b", re.I), "quiet_room", True),
     (re.compile(r"\bhigh\s+floor\b", re.I), "high_floor", True),
     (re.compile(r"\blow\s+floor\b", re.I), "low_floor", True),
@@ -64,6 +63,9 @@ def learn_preferences_from_requests(
     can compute a memory diff for the frontend ("we remembered: X").
     Never deletes existing preferences.
     """
+    # Local import avoids circular import with guest_memory.
+    from app.memory.guest_memory import decode_request
+
     existing = existing or {}
     proposed: dict[str, Any] = {}
 
