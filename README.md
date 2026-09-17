@@ -4,12 +4,12 @@
 
 **The hotel AI that proves its ROI.**
 
-[![Tests](https://img.shields.io/badge/tests-148%20passing-2dcc70?style=flat-square)](https://github.com/UmarMuhammad18/HotelOS)
-[![License](https://img.shields.io/badge/license-MIT-e8a020?style=flat-square)](LICENSE)
+[![CI](https://github.com/UmarMuhammad18/HotelOS/actions/workflows/ci.yml/badge.svg)](https://github.com/UmarMuhammad18/HotelOS/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.12-3178c6?style=flat-square)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=flat-square)](https://fastapi.tiangolo.com)
+[![License](https://img.shields.io/badge/license-MIT-e8a020?style=flat-square)](LICENSE)
 
-[**Live Demo →**](https://hotel-os-blond.vercel.app) · [API Docs](https://hotel-os-blond.vercel.app/docs) · [Slide Deck](#) · [Video Demo](#)
+[**Live Demo →**](https://hotel-os-blond.vercel.app) · [API Docs](https://hotel-os-blond.vercel.app/docs)
 
 </div>
 
@@ -63,7 +63,7 @@ Guest Channels                    Orchestrator                    Department Age
 ## Features
 
 ### 🧠 Intelligent Multi-Agent Routing
-11 department agents + Laundry/Valet piggyback. Each agent produces a `PlanFragment` with events, tool calls, and a localized guest reply. The orchestrator merges them into a single `Plan` for Node to execute.
+11 department agents + Laundry/Valet piggyback. Each agent produces a `PlanFragment` with events, tool calls, and a localized guest reply. The orchestrator merges them into a single `Plan` for the backend to execute.
 
 ### 🔒 Deterministic Safety (LLM-Independent)
 Safety doesn't depend on the model. Three deterministic layers run before any LLM output reaches production:
@@ -79,133 +79,81 @@ Every intent is intent-tagged and timestamped in guest memory. When the same int
 Between 22:00–07:00 (hotel-local timezone), routine requests from deferrable departments (Housekeeping, Laundry, Spa, Revenue) are demoted to LOW priority. Emergencies and maintenance always bypass.
 
 ### 🌍 Multilingual Replies
-Translation happens once, at the agent layer, not in the orchestrator. Single LLM call per non-English guest. Falls back to English if translation fails. Covers any language the model supports.
+Translation happens once, at the agent layer. Single LLM call per non-English guest. Falls back to English if translation fails.
 
-### 📊 Outcome Telemetry
-Every task gets an `OutcomeRecord` with four lifecycle timestamps (created → in_progress → completed → cancelled). The metrics layer aggregates:
-- Median and p95 resolution time per department
-- Emergency acknowledgement latency
-- Repeat-issue catches, accessibility cases, abuse incidents
-- Staff-hours saved (transparent heuristic, assumptions surfaced in API)
-- No-followup completions (AI-only resolutions)
+### 📊 Outcome Telemetry (the ROI proof)
+Every task gets an `OutcomeRecord` with four lifecycle timestamps. The metrics layer aggregates median/p95 resolution times, emergency latency, repeat-issue catches, staff-hours saved (transparent heuristic), and more.
 
 ```bash
 GET /v1/metrics/digest?days=7
-
-{
-  "digest": "Over the last 7 days, your AI handled 847 requests across 11 departments.\nEstimated staff time saved: ~23.1 hours (see breakdown for assumptions).\nSafety: 4 emergency events with a median 28s acknowledgement.\nCaught 12 repeat issues early — guest relations was looped in proactively.\n634 requests resolved without staff follow-up (75% of completed).",
-  "metrics": { ... }
-}
 ```
 
 ### 🏗 Production Hardening
-- **Timing-safe auth** — `hmac.compare_digest`, case-insensitive Bearer
-- **Idempotency keys** — `/v1/events` and `/v1/emergency` safe to retry
-- **Rate limiting** — Per-IP sliding window, configurable
-- **GDPR** — `DELETE /v1/guests/{id}?confirm=true` right-to-erasure
-- **Deep health** — `GET /v1/health/deep` pings the LLM provider
-- **Postgres** — Set `DATABASE_URL` to switch from JSON to Postgres automatically
+- Timing-safe auth (`hmac.compare_digest`)
+- Idempotency keys on `/v1/events` and `/v1/emergency`
+- Per-IP rate limiting
+- GDPR right-to-erasure
+- Deep health check that pings the LLM provider
+- JSON or Postgres storage (auto-selected via `DATABASE_URL`)
 
 ---
 
 ## Quick Start
 
-### Prerequisites
-- Python 3.12+
-- Node 18+
-- A Groq API key (free tier works)
-
-### 1. Clone and set up
+### Option A — Local (Python)
 
 ```bash
 git clone https://github.com/UmarMuhammad18/HotelOS
 cd HotelOS/hotel_ai
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
+python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-```
-
-### 2. Configure
-
-```bash
-cp .env.example .env
-# Edit .env — at minimum set LLM_PROVIDER=groq and GROQ_API_KEY=your_key
-```
-
-### 3. Run the AI service
-
-```bash
+cp .env.example .env          # set GROQ_API_KEY or LLM_PROVIDER=fake
 uvicorn app.main:app --reload --port 8000
 ```
 
-### 4. Test it
+### Option B — Docker
 
 ```bash
-curl -X POST http://localhost:8000/v1/events \
-  -H "Content-Type: application/json" \
-  -d '{
-    "event": {
-      "channel": "guest_chat",
-      "reservation_id": "res_001",
-      "room_number": "412",
-      "guest_id": "guest_001",
-      "text": "My AC is not cooling at all"
-    },
-    "stay": {
-      "guest": { "guest_id": "guest_001", "full_name": "Ada Lovelace" },
-      "room_number": "412",
-      "check_in": "2026-04-26",
-      "check_out": "2026-04-28",
-      "reservation_id": "res_001"
-    }
-  }'
+cd hotel_ai
+docker build -t hotel-ai .
+docker run --rm -p 8000:8000 --env-file .env hotel-ai
 ```
 
-### 5. Run tests
+Then open http://localhost:8000/docs
+
+### Run the tests
 
 ```bash
-pytest tests/ -v
-# 148 tests, all passing
+cd hotel_ai
+pip install -r requirements.txt -r requirements-dev.txt
+LLM_PROVIDER=fake pytest tests/ -v
 ```
 
 ---
 
-## API Reference
+## API Reference (key endpoints)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `POST` | `/v1/events` | Main entry — classify and route a guest event |
-| `POST` | `/v1/emergency` | Hard emergency bypass — skips LLM classification |
+| `POST` | `/v1/emergency` | Hard emergency bypass (skips LLM) |
 | `POST` | `/v1/tasks/status` | Update task lifecycle + write outcome record |
-| `GET`  | `/v1/guests/{id}/memory` | Fetch guest profile |
-| `POST` | `/v1/guests` | Upsert guest profile |
-| `DELETE` | `/v1/guests/{id}?confirm=true` | GDPR right-to-erasure |
-| `GET`  | `/v1/stays/{id}/summary` | Deterministic guest summary |
-| `GET`  | `/v1/metrics/period` | Structured metrics, rolling N-day window |
-| `GET`  | `/v1/metrics/digest` | Human-readable weekly digest |
-| `GET`  | `/v1/health` | Liveness check |
-| `GET`  | `/v1/health/deep` | Deep check — pings LLM provider |
-| `POST` | `/v1/webhooks/test` | Node→Python connectivity test |
+| `GET`  | `/v1/metrics/digest` | Human-readable weekly ROI digest |
+| `GET`  | `/v1/metrics/period` | Structured metrics |
+| `GET`  | `/v1/health` / `/v1/health/deep` | Liveness + LLM reachability |
+| `DELETE` | `/v1/guests/{id}?confirm=true` | GDPR erasure |
+
+Full contract: [`hotel_ai/docs/API.md`](hotel_ai/docs/API.md) and [`hotel_ai/docs/ARCHITECTURE.md`](hotel_ai/docs/ARCHITECTURE.md).
 
 ---
 
-## Configuration
+## Demo credentials (live site)
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `LLM_PROVIDER` | `groq` | `groq`, `gemini`, `anthropic`, or `fake` |
-| `LLM_MODEL` | `llama-3.3-70b-versatile` | Model override |
-| `GROQ_API_KEY` | — | Required for Groq |
-| `INTERNAL_API_TOKEN` | — | Bearer token for auth (empty = dev mode) |
-| `DATABASE_URL` | — | Postgres DSN — enables Postgres backend |
-| `GUEST_MEMORY_PATH` | `./data/guest_memory.json` | JSON store path |
-| `OUTCOME_STORE_PATH` | `./data/outcomes.json` | Outcome telemetry path |
-| `PROPERTY_ID` | `default` | Tag for multi-property |
-| `RATE_LIMIT_PER_MINUTE` | `60` | Per-IP rate limit (0 = disabled) |
-| `REPEAT_ISSUE_THRESHOLD` | `2` | Reports before escalation |
-| `REPEAT_ISSUE_WINDOW_HOURS` | `24` | Repeat-issue detection window |
-| `QUIET_HOURS_START` | `22` | Quiet hours start (hotel-local) |
-| `QUIET_HOURS_END` | `7` | Quiet hours end (hotel-local) |
+| Role | Credentials |
+|------|-------------|
+| Guest | Booking `BK-1000` / Lastname `Harrington` |
+| Admin | `admin@hotelos.app` / `admin123` |
+| Staff | `demo@hotelos.app` / `demo123` |
 
 ---
 
@@ -214,35 +162,22 @@ pytest tests/ -v
 | Layer | Technology |
 |-------|-----------|
 | AI Advisor | Python 3.12, FastAPI, Pydantic v2 |
-| LLM Providers | Groq (default), Google Gemini, Anthropic |
-| API Server | Node.js, Express, WebSocket |
-| Staff Dashboard | React, Vercel |
-| Mobile App | React Native (iOS + Android) |
-| Memory | JSON file (dev) or Postgres (prod) |
-| Testing | pytest, 148 tests |
+| LLM Providers | Groq (default), Gemini, Anthropic, FakeLLM |
+| Memory / Telemetry | JSON (dev) or Postgres (prod) |
+| Backend | Node.js / Express |
+| Staff Dashboard | React |
+| Mobile | React Native |
+| CI | GitHub Actions (ruff + mypy + pytest) |
+| Container | Docker |
 
 ---
 
-## Roadmap
+## Roadmap (high level)
 
-- [ ] **Predictive operations** — proactive recommendations from OutcomeRecord patterns
-- [ ] **Voice channel** — Whisper STT + ElevenLabs TTS wired to `EventChannel.VOICE`
-- [ ] **Multi-property** — per-property config, cross-property guest memory
-- [ ] **Confidence-aware routing** — low-confidence events go to human triage queue
-- [ ] **Real moderation pipeline** — Perspective API primary, regex fallback, audit log
-- [ ] **PMS integrations** — Opera, Mews, Cloudbeds, Apaleo adapters
+See the detailed plan in [`hotel_ai/docs/ROADMAP.md`](hotel_ai/docs/ROADMAP.md).
 
----
+**Next up:** smarter routing (few-shot + history + sentiment), memory learning workers, then frontend polish.
 
-## Built at Encode Hackathon
-
-HotelOS was built for the Encode Hackathon Agent Track. The Python AI service, all 11 agents, outcome telemetry system, and 148 tests were written in a single focused session.
-
-**Live demo:** https://hotel-os-blond.vercel.app  
-**GitHub:** https://github.com/UmarMuhammad18/HotelOS
-Guest Login: BK-1000  and Lastname: Harrington
-Admin: admin@hotelos.app and Password: admin123
-Staff: demo@hotelos.ap and Password: demo123
 ---
 
 <div align="center">
