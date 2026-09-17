@@ -29,15 +29,15 @@ Goal: `/v1/events` turns a guest message into a routed task plus a guest ack.
 - [x] Multilingual single-pass translation
 - [x] Accessibility-aware routing outside emergencies
 
-## Phase 2 — Smarter routing (next priority)
+## Phase 2 — Smarter routing ✅ (this release)
 
-- [ ] Few-shot examples in the classifier prompt, drawn from real past events
-- [ ] Include guest preferences + last 5 events in the classifier context
-- [ ] Sentiment handling: frustrated guests auto-copy guest_relations
-- [ ] Multi-step planning for coordinated requests
-- [ ] Confidence scores on classifications → human triage queue for low confidence
+- [x] Few-shot examples in the classifier prompt (`app/agents/classify_prompt.py`)
+- [x] Guest preferences + last 5 events already injected via `_build_context_block`
+- [x] Sentiment handling: frustrated/distressed guests auto-route to Guest Relations
+- [x] Confidence scores on classifications → `needs_human_triage` when confidence < 0.55
+- [ ] Multi-step planning for highly coordinated requests (follow-up)
 
-## Phase 3 — Memory & learning
+## Phase 3 — Memory & learning (next)
 
 - [ ] Nightly worker: summarise the day's events per guest into durable preferences
 - [ ] Proactive hooks on check-in: pre-create tasks from known preferences
