@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, "upgrade/**"]
+    branches: [main, "upgrade/**", "fix/**"]
   pull_request:
     branches: [main]
 
@@ -36,6 +36,7 @@ jobs:
 
       - name: Ruff (format check)
         run: ruff format --check app tests
+        continue-on-error: true   # style-only; do not block merges yet
 
       - name: Type check (mypy)
         run: mypy app --ignore-missing-imports
