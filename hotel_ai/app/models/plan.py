@@ -66,6 +66,12 @@ class Plan(BaseModel):
     priority: str = "normal"
     emergency: bool = False
 
+    # Smarter-routing additions (Phase 2)
+    # Confidence is the LLM's self-reported certainty in the classification
+    # (0.0–1.0). When below the triage threshold we set needs_human_triage.
+    confidence: float | None = None
+    needs_human_triage: bool = False
+
     events: list[AgentEvent] = Field(default_factory=list)
     tool_calls: list[ToolCall] = Field(default_factory=list)
     guest_reply: GuestReply | None = None

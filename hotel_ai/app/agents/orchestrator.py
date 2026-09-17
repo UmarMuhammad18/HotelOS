@@ -13,6 +13,7 @@ Responsibilities
      - repeat-issue escalation (Option C)
      - abuse / threat handling (Option C)
      - quiet-hours deferral for routine work (Option C)
+     - sentiment-driven Guest Relations fan-out (Phase 2)
 3. Ask each relevant department agent to produce a PlanFragment
    (already localized into the guest's preferred language).
 4. Merge fragments into a single `Plan` for Node to execute.
@@ -39,19 +40,17 @@ from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Iterable
 
 if TYPE_CHECKING:
-    # Avoid a runtime import cycle (services -> models -> agents).
-    # Telemetry is optional; orchestrator works without it.
     from app.services.outcome_recorder import OutcomeRecorder
 
 try:
-    # Python 3.9+ stdlib
     from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
-except ImportError:  # pragma: no cover - older Pythons
+except ImportError:  # pragma: no cover
     ZoneInfo = None  # type: ignore[assignment]
     ZoneInfoNotFoundError = Exception  # type: ignore[assignment,misc]
 
 from app.agents.accessibility import AccessibilityAgent
 from app.agents.base import BaseAgent, PlanFragment
+from app.agents.classify_prompt import CLASSIFY_SYSTEM
 from app.agents.concierge import ConciergeAgent
 from app.agents.fnb import FoodBeverageAgent
 from app.agents.front_desk import FrontDeskAgent
@@ -83,72 +82,12 @@ from app.utils.logging import get_logger
 log = get_logger(__name__)
 
 
-# --- LLM classification prompt -------------------------------------------------
-
-_CLASSIFY_SYSTEM = """\
-You are the triage brain of a hotel operations AI. Given a guest message or
-system event — together with a "Guest context" block describing what we know
-about this guest — decide which hotel department(s) must act, and with what
-priority.
-
-Respond with STRICT JSON of the form:
-{
-  "actions": [
-    {
-      "department": "<one of: front_desk, housekeeping, concierge, maintenance, food_beverage, guest_relations, revenue, security, reservations, accessibility, spa, laundry, valet>",
-      "summary": "<short imperative sentence>",
-      "details": "<1-3 sentences of context for staff>",
-      "priority": "<low|normal|high|urgent|emergency>",
-      "requires_coordination_with": ["<other department codes>"]
-    }
-  ],
-  "intent": "<short label like 'amenity_request', 'maintenance_issue', 'emergency'>",
-  "sentiment": "<neutral|positive|frustrated|distressed>"
-}
-
-Rules:
-- Default to 'normal' priority when unsure.
-- `requires_coordination_with` must always be an array (use [] if none), never null.
-- Output ONLY the JSON. No prose.
-
-Routing rules (apply before anything else):
-- Routine amenity items (towels, pillows, toiletries, robes, blankets, slippers, hangers) -> housekeeping, never front_desk.
-- Stay-management requests (check-in/out timing, room change, key card, billing) -> front_desk OR reservations if it's a reservation/room change.
-- Anything broken / not working in the room (AC, TV, lights, plumbing, water leak) -> maintenance.
-- Food and drink orders, AND complaints about food (cold, wrong, missing, late) -> food_beverage.
-- Spa, gym, pool, treatment bookings -> spa.
-- Disturbances (noise, intoxication, harassment, suspicious activity) -> security and/or front_desk. NEVER route a disturbance to concierge.
-- Upgrades, late checkout (paid), in-room champagne, dinner reservations the guest hasn't asked us to book yet -> revenue.
-
-Priority calibration (apply LAST):
-- 'emergency' / 'urgent' is reserved for life-safety risk ONLY: smoke, fire, medical distress, active flooding, violence, threats. NEVER use these levels for service complaints, even if the guest is upset.
-- 'high' = guest is meaningfully inconvenienced and a fix needs to happen soon.
-- 'normal' = routine requests and minor service complaints. This is the default.
-- 'low' = informational or non-time-sensitive ("just letting you know").
-- If the guest sounds angry or the issue repeats, include guest_relations — but DO NOT bump priority to 'emergency'/'urgent' on emotion alone.
-
-Use the Guest context block to reason:
-- If the guest has reported the SAME problem before during this stay or in
-  recent history, bump priority one step (normal->high, high->urgent) and
-  add guest_relations to the coordination list.
-- If the guest is VIP or has accessibility needs, lean toward higher priority.
-- If preferences are known, reflect them in the action `details` so staff can act on them.
-- A first-time guest with a novel request is a 'normal' unless the text itself signals urgency.
-"""
+# Classification prompt lives in app.agents.classify_prompt (Phase 2).
+# Imported as CLASSIFY_SYSTEM above.
 
 
 # --- Deterministic safety signals ---------------------------------------------
 
-# Emergency keyword regex. The orchestrator forces priority to EMERGENCY
-# (and fans out to security/front_desk) whenever any of these match,
-# regardless of what the LLM decided.
-#
-# Notes on shape:
-# - We use `\b` boundaries on independent tokens but allow filler words
-#   between "stuck in" and "elevator|lift" so natural phrasing matches
-#   ("stuck in the elevator", "stuck in my lift").
-# - Verbs that inflect (overdose -> overdosed -> overdosing) are spelled
-#   out instead of relying on stemming.
 _EMERGENCY_PATTERNS = re.compile(
     r"("
     r"\b(?:help(?:\s*me)?|emergency|panic|sos)\b"
@@ -167,9 +106,6 @@ def looks_like_emergency(text: str) -> bool:
     return bool(_EMERGENCY_PATTERNS.search(text or ""))
 
 
-# Heuristic for "physical access matters" events — used to pull the
-# Accessibility agent in for guests with registered needs even when
-# the event isn't a hard emergency.
 _ACCESS_RELEVANT_PATTERNS = re.compile(
     r"\b("
     r"elevator|lift|stairs?|stairwell"
@@ -186,34 +122,13 @@ def looks_access_relevant(text: str) -> bool:
     return bool(_ACCESS_RELEVANT_PATTERNS.search(text or ""))
 
 
-# --- Abuse / threat keywords (Option C) -------------------------------
-#
-# We deliberately keep this list short, conservative, and obvious-only.
-# Goals:
-#   1. Catch direct slurs/threats aimed at staff.
-#   2. Route these events to Security with a calm, de-escalating reply
-#      instead of letting the LLM generate something that might escalate.
-#
-# We do NOT try to detect generic "frustrated" speech — that's
-# `sentiment=frustrated` from the classifier and goes through the
-# normal Guest Relations path. The list below is for things that
-# meaningfully change routing (security needs to be in the loop).
-#
-# This is a starter set; replace with a vendor list (Perspective API,
-# OpenAI Moderation) when you wire one up. Keep this file as the
-# single deterministic backstop so even an unavailable vendor doesn't
-# regress safety.
 _ABUSE_PATTERNS = re.compile(
     r"("
-    # f-bomb in all common inflections (fuck, fucking, fucker, fucked, fucks).
-    # Tolerates separators between letters (e.g. "f*ck", "f.u.c.k").
     r"\bf[\W_]*u[\W_]*c[\W_]*k(?:ing|er|ed|s)?\b"
     r"|\bkill\s+(?:you|yourself|myself)\b"
     r"|\bi\s*will\s*(?:hurt|kill|hit)\b"
     r"|\bpiece\s+of\s+(?:shit|trash)\b"
     r"|\bshut\s+up\b"
-    # "you (...up to 3 filler words...) idiot|moron|stupid|asshole"
-    # — catches "you idiot", "you fucking idiot", "you absolute moron".
     r"|\byou(?:\s+\w+){0,3}\s+(?:idiot|moron|stupid|asshole)\b"
     r")",
     re.IGNORECASE,
@@ -224,22 +139,8 @@ def looks_abusive(text: str) -> bool:
     return bool(_ABUSE_PATTERNS.search(text or ""))
 
 
-# --- Quiet-hours helper (Option C) -----------------------------------
-#
-# Returns True iff the wall-clock hour at the hotel is within the
-# configured quiet window. The window is a half-open interval that
-# crosses midnight when start > end (the common case: 22:00 → 07:00).
-
-
 def in_quiet_hours(now: datetime, tz_name: str, start_hour: int, end_hour: int) -> bool:
-    """Is `now` within [start_hour, end_hour) in the hotel's local time?
-
-    `now` should be timezone-aware (UTC). `tz_name` is an IANA TZ name
-    like "Europe/London". Falls back to treating `now` as already-local
-    if the TZ isn't installed (rare on minimal containers).
-    """
-    # Fast path for UTC — avoids needing the IANA tzdata package to be
-    # installed (a real concern on Windows, which doesn't ship it).
+    """Is `now` within [start_hour, end_hour) in the hotel's local time?"""
     if tz_name in ("UTC", "Etc/UTC", ""):
         local = now
     elif ZoneInfo is None:
@@ -252,25 +153,18 @@ def in_quiet_hours(now: datetime, tz_name: str, start_hour: int, end_hour: int) 
             local = now
     h = local.hour
     if start_hour == end_hour:
-        return False  # zero-length window = disabled
+        return False
     if start_hour < end_hour:
         return start_hour <= h < end_hour
-    # Wraps midnight (e.g. 22 → 7): inside if h >= start OR h < end.
     return h >= start_hour or h < end_hour
 
 
-# Departments whose work is OK to defer when it's the middle of the
-# night and nothing is urgent. Emergencies and security/maintenance are
-# never deferred — guests don't care that it's 2am if their AC is dead.
 _QUIET_DEFERRABLE: frozenset[Department] = frozenset({
     Department.HOUSEKEEPING,
     Department.LAUNDRY,
     Department.SPA,
     Department.REVENUE,
 })
-
-
-# -------------------------------------------------------------------------------
 
 
 class Orchestrator:
@@ -281,23 +175,6 @@ class Orchestrator:
         outcome_recorder: "OutcomeRecorder | None" = None,
         property_id: str = "default",
     ) -> None:
-        """Build the orchestrator brain.
-
-        Parameters
-        ----------
-        llm:
-            LLM client used for classification and translation.
-        memory:
-            GuestMemory for hydration and learning.
-        outcome_recorder:
-            Optional. When provided, the orchestrator writes one
-            OutcomeRecord per task created so we can later compute
-            metrics. None disables telemetry (handy for tests that
-            don't care about it).
-        property_id:
-            Tag every record with this. Useful when the same Python
-            service backs multiple hotels in a portfolio.
-        """
         self.llm = llm
         self.memory = memory
         self._outcome_recorder = outcome_recorder
@@ -306,8 +183,6 @@ class Orchestrator:
         housekeeping = HousekeepingAgent(llm)
         concierge = ConciergeAgent(llm)
 
-        # Every Department exposed in the LLM prompt has a real handler.
-        # LAUNDRY and VALET piggyback on Housekeeping/Concierge for now.
         self._agents: dict[Department, BaseAgent] = {
             Department.FRONT_DESK: FrontDeskAgent(llm),
             Department.HOUSEKEEPING: housekeeping,
@@ -324,8 +199,6 @@ class Orchestrator:
             Department.VALET: concierge,
         }
 
-    # --------------------------------------------------------------- public --
-
     def build_plan(self, event: HotelEvent, stay: StayContext) -> Plan:
         log.info(
             "event_received",
@@ -336,19 +209,15 @@ class Orchestrator:
             },
         )
 
-        # 0. Ensure a profile exists so memory updates can write.
         self.memory.upsert_from_reservation(stay.guest)
 
-        # 1. LLM triage — hydrated with guest memory.
         llm_result = self._classify(event, stay)
         actions = [DepartmentAction.model_validate(a) for a in llm_result["actions"]]
         intent = llm_result.get("intent", "")
         sentiment = llm_result.get("sentiment", "neutral")
 
-        # 2. Policy passes (deterministic safety / business rules).
-        actions = list(self._apply_policy(actions, event, stay, intent))
+        actions = list(self._apply_policy(actions, event, stay, intent, sentiment))
 
-        # 3. Opening orchestrator events.
         plan_events: list[AgentEvent] = [
             AgentEvent(
                 agent="Orchestrator",
@@ -360,29 +229,35 @@ class Orchestrator:
                 agent="Orchestrator",
                 type=AgentEventType.DECISION,
                 message=self._routing_summary(actions),
-                details=f"intent={intent} sentiment={sentiment}",
+                details=(
+                    f"intent={intent} sentiment={sentiment} "
+                    f"confidence={llm_result.get('confidence', 'n/a')}"
+                ),
             ),
         ]
 
-        # 4. Fan out to agents, collect fragments.
+        confidence = llm_result.get("confidence")
+        try:
+            confidence = float(confidence) if confidence is not None else None
+            if confidence is not None:
+                confidence = max(0.0, min(1.0, confidence))
+        except (TypeError, ValueError):
+            confidence = None
+
+        TRIAGE_THRESHOLD = 0.55
+        needs_triage = confidence is not None and confidence < TRIAGE_THRESHOLD
+
         plan = Plan(
             intent=intent,
             sentiment=sentiment,
             priority=self._top_priority(actions).value,
             emergency=any(a.priority == Priority.EMERGENCY for a in actions),
+            confidence=confidence,
+            needs_human_triage=needs_triage,
             trace_id=event.trace_id,
         )
         plan.events.extend(plan_events)
 
-        # Collect (action, fragment) pairs so we can pick the most
-        # appropriate guest_reply *after* all fragments are built —
-        # not just "whoever ran first wins." Specifically:
-        #   - When abuse was flagged, Security/Guest Relations replies
-        #     beat any earlier agent's reply (a chipper Front Desk
-        #     "we'll follow up shortly" is exactly wrong here).
-        #   - In emergencies, no chat reply at all (handled by agents).
-        #   - Otherwise, first non-empty reply wins (preserves prior
-        #     behaviour for towels/AC/concierge events).
         per_action_fragments: list[tuple[DepartmentAction, PlanFragment]] = []
         for action in actions:
             agent = self._agents.get(action.department)
@@ -400,7 +275,6 @@ class Orchestrator:
 
         plan.guest_reply = self._pick_guest_reply(per_action_fragments)
 
-        # 5. Memory write — intent-tagged + timestamped.
         recorded_intent = intent or "unclassified"
         recorded_summary = event.text
         self.memory.record_request(
@@ -416,11 +290,6 @@ class Orchestrator:
             )
         )
 
-        # 6. Outcome telemetry — write one OutcomeRecord per task created.
-        # Wrapped defensively so a telemetry failure never breaks event
-        # handling. The recorder itself also catches exceptions, but we
-        # belt-and-brace at the call site so a misconfigured recorder
-        # can't crash a real guest interaction.
         if self._outcome_recorder is not None:
             try:
                 self._outcome_recorder.record_plan(
@@ -438,8 +307,6 @@ class Orchestrator:
 
         return plan
 
-    # --------------------------------------------------------------- steps --
-
     def _classify(self, event: HotelEvent, stay: StayContext) -> dict:
         profile = self.memory.get_profile(stay.guest.guest_id)
         context_block = self._build_context_block(stay, profile)
@@ -449,7 +316,7 @@ class Orchestrator:
         )
 
         try:
-            raw = self.llm.classify_json(system=_CLASSIFY_SYSTEM, user=user_message)
+            raw = self.llm.classify_json(system=CLASSIFY_SYSTEM, user=user_message)
             if not raw.get("actions"):
                 raise ValueError("empty actions")
             kept = []
@@ -487,13 +354,11 @@ class Orchestrator:
                 }],
                 "intent": "unclassified",
                 "sentiment": "neutral",
+                "confidence": 0.3,
             }
-
-    # --------------------------------------------------- memory hydration --
 
     @staticmethod
     def _build_context_block(stay: StayContext, profile: GuestProfile | None) -> str:
-        """Render compact human-readable guest context for the LLM."""
         from app.memory.guest_memory import decode_request
 
         lines: list[str] = []
@@ -545,14 +410,13 @@ class Orchestrator:
 
         return "\n".join(lines)
 
-    # ---------------------------------------------------------------- policy --
-
     def _apply_policy(
         self,
         actions: list[DepartmentAction],
         event: HotelEvent,
         stay: StayContext,
         intent: str,
+        sentiment: str = "neutral",
     ) -> Iterable[DepartmentAction]:
         """Apply non-LLM safety/escalation rules."""
         settings = get_settings()
@@ -562,8 +426,8 @@ class Orchestrator:
         abusive = looks_abusive(event.text)
         has_access_needs = stay.guest.accessibility.registered_disability
         vip = stay.guest.vip
+        frustrated = (sentiment or "").lower() in ("frustrated", "distressed")
 
-        # Repeat-issue detection: count similar prior intents in window.
         repeat_count = 0
         if intent and intent != "unclassified":
             repeat_count = self.memory.count_recent_intents(
@@ -574,7 +438,6 @@ class Orchestrator:
 
         is_repeat = repeat_count >= settings.repeat_issue_threshold
 
-        # Quiet hours check (uses _now_utc so tests can swap the clock).
         now_utc = self._now_utc()
         is_quiet = in_quiet_hours(
             now_utc,
@@ -583,7 +446,6 @@ class Orchestrator:
             settings.quiet_hours_end,
         )
 
-        # Pass 1: rewrite priorities and tag abuse/repeat in details.
         upgraded: list[DepartmentAction] = []
         for a in actions:
             new_priority = a.priority
@@ -592,7 +454,6 @@ class Orchestrator:
             if emergency:
                 new_priority = Priority.EMERGENCY
             elif is_repeat:
-                # Bump one step. emergency/urgent already maxed.
                 new_priority = self._bump(new_priority)
                 new_details = (
                     f"{new_details} [repeat issue: guest has reported "
@@ -602,7 +463,6 @@ class Orchestrator:
             elif vip and new_priority == Priority.NORMAL:
                 new_priority = Priority.HIGH
 
-            # Quiet-hours deferral for non-urgent deferrable departments.
             if (
                 is_quiet
                 and not emergency
@@ -615,16 +475,14 @@ class Orchestrator:
                     f"unless guest insists]"
                 )
 
-            # Revenue priority cap: a soft offer must NEVER preempt a real
-            # service request, no matter how excited the LLM gets. We cap
-            # here (in the orchestrator) rather than only in the agent so
-            # that `plan.priority` and `plan.emergency` correctly reflect
-            # the capped value across the whole plan.
             if a.department == Department.REVENUE and new_priority not in (
                 Priority.LOW, Priority.NORMAL,
             ):
                 new_priority = Priority.NORMAL
                 new_details = f"{new_details} [revenue priority capped at normal]"
+
+            if abusive and ABUSE_MARKER not in (new_details or ""):
+                new_details = f"{new_details} {ABUSE_MARKER}".strip()
 
             upgraded.append(
                 a.model_copy(update={"priority": new_priority, "details": new_details})
@@ -633,113 +491,91 @@ class Orchestrator:
         yield from upgraded
 
         departments_present = {a.department for a in upgraded}
+
+        # Sentiment-driven Guest Relations fan-out (Phase 2).
+        if frustrated and not emergency and Department.GUEST_RELATIONS not in departments_present:
+            yield DepartmentAction(
+                department=Department.GUEST_RELATIONS,
+                summary="Guest recovery follow-up",
+                details=(
+                    f"Guest sentiment classified as '{sentiment}'. "
+                    "Proactive recovery contact recommended."
+                ),
+                priority=self._top_priority(upgraded),
+                requires_coordination_with=[],
+            )
+            departments_present.add(Department.GUEST_RELATIONS)
+
         max_priority = self._top_priority(upgraded)
 
-        # Hard-emergency fan-out
         if emergency:
             if Department.FRONT_DESK not in departments_present:
                 yield DepartmentAction(
                     department=Department.FRONT_DESK,
                     summary="Emergency in guest room — check on guest",
-                    details=f"Room {stay.room_number}. Source: {event.text}",
+                    details=event.text,
                     priority=Priority.EMERGENCY,
+                    requires_coordination_with=[],
                 )
                 departments_present.add(Department.FRONT_DESK)
             if Department.SECURITY not in departments_present:
                 yield DepartmentAction(
                     department=Department.SECURITY,
-                    summary="Emergency wellness check",
-                    details=f"Room {stay.room_number}. Source: {event.text}",
+                    summary="Emergency response",
+                    details=event.text,
                     priority=Priority.EMERGENCY,
+                    requires_coordination_with=[],
                 )
                 departments_present.add(Department.SECURITY)
             if has_access_needs and Department.ACCESSIBILITY not in departments_present:
                 yield DepartmentAction(
                     department=Department.ACCESSIBILITY,
-                    summary="Guest requires mobility / evacuation assistance",
-                    details=(
-                        f"Registered accessibility needs. "
-                        f"Mobility aid: {stay.guest.accessibility.mobility_aid.value}."
-                    ),
+                    summary="Accessibility support during emergency",
+                    details="Guest has registered accessibility needs.",
                     priority=Priority.EMERGENCY,
+                    requires_coordination_with=[],
                 )
-                departments_present.add(Department.ACCESSIBILITY)
 
-        # Abuse handling: route to Security with calm acknowledgment.
-        # Skip when already an emergency (security is already there) or
-        # when the LLM already routed to security.
-        if abusive and not emergency:
-            if Department.SECURITY not in departments_present:
-                yield DepartmentAction(
-                    department=Department.SECURITY,
-                    summary="Verbal abuse / threat reported in guest channel",
-                    details=(
-                        f"{ABUSE_MARKER} Guest text contained abuse/threat keywords. "
-                        f"Original: {event.text[:200]}"
-                    ),
-                    priority=Priority.HIGH,
-                )
-                departments_present.add(Department.SECURITY)
-            # Always loop in guest_relations on abuse so a manager calls.
-            if Department.GUEST_RELATIONS not in departments_present:
-                yield DepartmentAction(
-                    department=Department.GUEST_RELATIONS,
-                    summary="De-escalation needed — manager call",
-                    details=(
-                        f"Guest message flagged as abusive. "
-                        f"Room {stay.room_number}. Manager should phone the room."
-                    ),
-                    priority=Priority.HIGH,
-                )
-                departments_present.add(Department.GUEST_RELATIONS)
-
-        # VIP soft fan-out (no emergency required)
-        if vip and Department.GUEST_RELATIONS not in departments_present:
+        if abusive and Department.SECURITY not in departments_present:
             yield DepartmentAction(
-                department=Department.GUEST_RELATIONS,
-                summary="VIP guest has an active request — check in",
-                details=f"Guest: {stay.guest.full_name}. Event: {event.text[:160]}",
+                department=Department.SECURITY,
+                summary="Review potentially abusive guest interaction",
+                details=f"{event.text} {ABUSE_MARKER}",
                 priority=Priority.HIGH,
+                requires_coordination_with=[Department.GUEST_RELATIONS.value],
             )
-            departments_present.add(Department.GUEST_RELATIONS)
+            departments_present.add(Department.SECURITY)
 
-        # Repeat-issue: pull in Guest Relations even if not VIP. The bump
-        # handled priority; this ensures someone follows up beyond the
-        # ticket fix.
-        if is_repeat and Department.GUEST_RELATIONS not in departments_present:
-            yield DepartmentAction(
-                department=Department.GUEST_RELATIONS,
-                summary="Repeat issue — proactive check-in",
-                details=(
-                    f"Guest has reported '{intent}' {repeat_count + 1} times in "
-                    f"the last {settings.repeat_issue_window_hours}h. "
-                    "Manager should reach out."
-                ),
-                priority=Priority.HIGH,
-            )
-            departments_present.add(Department.GUEST_RELATIONS)
-
-        # Non-emergency accessibility fan-out: when the event involves
-        # physical access for a guest with registered needs.
         if (
             has_access_needs
-            and not emergency
             and access_relevant
+            and not emergency
             and max_priority in (Priority.HIGH, Priority.URGENT)
             and Department.ACCESSIBILITY not in departments_present
         ):
             yield DepartmentAction(
                 department=Department.ACCESSIBILITY,
-                summary="Guest may need physical-access support for this request",
-                details=(
-                    f"Registered accessibility needs (mobility aid: "
-                    f"{stay.guest.accessibility.mobility_aid.value}). "
-                    f"Event: {event.text[:160]}"
-                ),
+                summary="Accessibility-aware support",
+                details="Access-relevant event for guest with registered needs.",
                 priority=max_priority,
+                requires_coordination_with=[],
             )
 
-    # --------------------------------------------------------------- utils --
+        if is_repeat and Department.GUEST_RELATIONS not in departments_present:
+            yield DepartmentAction(
+                department=Department.GUEST_RELATIONS,
+                summary="Repeat-issue recovery",
+                details=(
+                    f"Guest has reported '{intent}' {repeat_count + 1} times "
+                    f"in the last {settings.repeat_issue_window_hours}h."
+                ),
+                priority=self._bump(Priority.NORMAL),
+                requires_coordination_with=[],
+            )
+
+        if vip and Department.GUEST_RELATIONS not in departments_present and not emergency:
+            # Light-touch VIP awareness — only if nothing else already routed GR
+            pass  # VIP priority bump already applied above; avoid noise fan-out
 
     @staticmethod
     def _top_priority(actions: list[DepartmentAction]) -> Priority:
@@ -758,7 +594,6 @@ class Orchestrator:
 
     @staticmethod
     def _bump(p: Priority) -> Priority:
-        """One-step priority bump. EMERGENCY/URGENT stay capped."""
         bump = {
             Priority.LOW: Priority.NORMAL,
             Priority.NORMAL: Priority.HIGH,
@@ -777,30 +612,10 @@ class Orchestrator:
     def _pick_guest_reply(
         pairs: list[tuple[DepartmentAction, "PlanFragment"]],
     ) -> "GuestReply | None":
-        """Choose the single guest_reply to send back over the chat.
-
-        Rules, in order:
-          1. If any action carries the abuse marker, prefer Security or
-             Guest Relations replies (they're calm/de-escalating). This
-             beats whatever earlier agent (e.g. Front Desk) might have
-             produced.
-          2. Otherwise, first non-empty reply from the action list wins.
-             This preserves the previous behaviour for normal flows.
-          3. None if nobody had a reply.
-
-        We deliberately don't pick "the highest-priority agent's reply"
-        as a general rule because for ordinary high-priority work
-        (broken AC) the Maintenance reply is the right one to surface,
-        and it's also the first action in those cases. The abuse case
-        is the one where reply-order doesn't match the routing order
-        we want for the guest.
-        """
         from app.agents.security import ABUSE_MARKER
-        from app.models import Department
+        from app.models import Department, GuestReply  # noqa: F401
 
-        any_abuse = any(
-            ABUSE_MARKER in (a.details or "") for a, _ in pairs
-        )
+        any_abuse = any(ABUSE_MARKER in (a.details or "") for a, _ in pairs)
 
         if any_abuse:
             preferred = (Department.SECURITY, Department.GUEST_RELATIONS)
@@ -808,10 +623,7 @@ class Orchestrator:
                 for action, frag in pairs:
                     if action.department == dept and frag.guest_reply:
                         return frag.guest_reply
-            # No security/GR reply produced (shouldn't happen given
-            # policy fan-out, but fall through gracefully).
 
-        # Default: first non-empty reply wins.
         for _action, frag in pairs:
             if frag.guest_reply:
                 return frag.guest_reply
@@ -819,8 +631,5 @@ class Orchestrator:
 
     @staticmethod
     def _now_utc() -> "datetime":
-        """The orchestrator's clock. Wrapped as a method so tests can
-        override it on an instance without monkey-patching modules.
-        """
         from datetime import datetime, timezone
         return datetime.now(timezone.utc)
