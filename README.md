@@ -9,39 +9,15 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=flat-square)](https://fastapi.tiangolo.com)
 [![License](https://img.shields.io/badge/license-MIT-e8a020?style=flat-square)](LICENSE)
 
-[**Live Demo →**](https://hotel-os-blond.vercel.app) · [API Docs](https://hotel-os-blond.vercel.app/docs)
+[**Live Demo →**](https://hotel-os-blond.vercel.app)
+
+<a href="https://hotel-os-blond.vercel.app">
+  <img src="https://iad.microlink.io/Ci32NujhUJrM-NMrQXMgUkVSMnJHet-O9qv85HZcO1S94Zu0ZzbByBtsuiNJjdCC75HxtRwYBbYBTXJDE2ggCw.png" alt="HotelOS landing page" width="800" />
+</a>
 
 </div>
 
----
-
-## Live demo
-
-<p align="center">
-  <a href="https://hotel-os-blond.vercel.app">
-    <img src="https://iad.microlink.io/Ci32NujhUJrM-NMrQXMgUkVSMnJHet-O9qv85HZcO1S94Zu0ZzbByBtsuiNJjdCC75HxtRwYBbYBTXJDE2ggCw.png" alt="HotelOS live demo — landing page" width="900" />
-  </a>
-</p>
-
-**Open the product:** [https://hotel-os-blond.vercel.app](https://hotel-os-blond.vercel.app)
-
-### Walkthrough
-
-1. **Landing** — Full-bleed resort hero with *Enter The Cockpit* CTA.
-2. **Login modal** — Toggle **Guest Login** vs **Staff / Admin**.
-3. **Guest path** — Booking confirmation + last name (demo: `BK-1000` / `Harrington`).
-4. **Staff path** — Email + password (demo accounts below).
-5. **Cockpit** — Staff/admin surface for operations; guest surface for in-stay requests.
-
-### Demo credentials
-
-| Role | Credentials |
-|------|-------------|
-| Guest | Booking `BK-1000` / Lastname `Harrington` |
-| Staff | `demo@hotelos.app` / `demo123` |
-| Admin | `admin@hotelos.app` / `admin123` |
-
-> Tip: use an Incognito window if a previous session is stuck on the login modal.
+**Demo logins:** Guest `BK-1000` / `Harrington` · Staff `demo@hotelos.app` / `demo123` · Admin `admin@hotelos.app` / `admin123`
 
 ---
 
@@ -192,12 +168,8 @@ Full contract: [`hotel_ai/docs/API.md`](hotel_ai/docs/API.md) and [`hotel_ai/doc
 
 ---
 
-## Roadmap (high level)
+## Roadmap
 
-See the detailed plan in [`hotel_ai/docs/ROADMAP.md`](hotel_ai/docs/ROADMAP.md).
-
-**Shipped recently:** Phase 2 smarter routing, Phase 3 memory learning, classify validation + preference-aware agent replies.
-
-**Next up:** emergency/moderation polish, then frontend dashboard polish.
+See [`hotel_ai/docs/ROADMAP.md`](hotel_ai/docs/ROADMAP.md).
 
 ---
