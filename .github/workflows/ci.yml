@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "upgrade/**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  hotel-ai:
+    name: Hotel AI (lint + type-check + tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: hotel_ai
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: |
+            hotel_ai/requirements.txt
+            hotel_ai/requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Ruff (lint)
+        run: ruff check app tests
+
+      - name: Ruff (format check)
+        run: ruff format --check app tests
+
+      - name: Type check (mypy)
+        run: mypy app --ignore-missing-imports
+        continue-on-error: true   # soft until types are fully annotated
+
+      - name: Run tests
+        env:
+          LLM_PROVIDER: fake
+          ENVIRONMENT: test
+        run: |
+          pytest tests/ -v --tb=short
