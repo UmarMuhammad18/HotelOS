@@ -24,6 +24,7 @@ import ReviewsManager from './pages/admin/ReviewsManager';
 import AdminDepartments from './pages/AdminDepartments';
 import SystemHealth from './pages/admin/SystemHealth';
 import IssuesResolved from './pages/admin/IssuesResolved';
+import MetricsDigest from './pages/admin/MetricsDigest';
 
 import { GuestProtectedRoute, AdminProtectedRoute, StaffProtectedRoute } from './components/RoleRoutes';
 
@@ -32,7 +33,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Homepage />} />
-        
+
         {/* Guest Routes */}
         <Route element={<GuestProtectedRoute />}>
           <Route path="/guest" element={<GuestLayout />}>
@@ -53,6 +54,7 @@ function App() {
             <Route path="departments" element={<AdminDepartments />} />
             <Route path="system" element={<SystemHealth />} />
             <Route path="issues" element={<IssuesResolved />} />
+            <Route path="metrics" element={<MetricsDigest />} />
           </Route>
         </Route>
 
