@@ -32,6 +32,7 @@ Rules:
 - Output ONLY the JSON. No prose.
 - Always include a confidence score. Use <= 0.55 when the request is ambiguous,
   multi-intent, or you had to guess the department.
+- Use exact department codes from the list above (snake_case). Never invent new ones.
 
 Routing rules (apply before anything else):
 - Routine amenity items (towels, pillows, toiletries, robes, blankets, slippers, hangers) -> housekeeping, never front_desk.
@@ -39,8 +40,11 @@ Routing rules (apply before anything else):
 - Anything broken / not working in the room (AC, TV, lights, plumbing, water leak) -> maintenance.
 - Food and drink orders, AND complaints about food (cold, wrong, missing, late) -> food_beverage.
 - Spa, gym, pool, treatment bookings -> spa.
+- Laundry / pressing / dry-cleaning -> laundry.
+- Car / vehicle / parking assistance -> valet.
 - Disturbances (noise, intoxication, harassment, suspicious activity) -> security and/or front_desk. NEVER route a disturbance to concierge.
 - Upgrades, late checkout (paid), in-room champagne, dinner reservations the guest hasn't asked us to book yet -> revenue.
+- Local recommendations, tickets, tours, restaurant bookings the guest explicitly asked us to arrange -> concierge.
 
 Priority calibration (apply LAST):
 - 'emergency' / 'urgent' is reserved for life-safety risk ONLY: smoke, fire, medical distress, active flooding, violence, threats. NEVER use these levels for service complaints, even if the guest is upset.
@@ -74,4 +78,16 @@ Guest: "We need late checkout and also the minibar was empty when we arrived."
 Example 4 — emergency
 Guest: "Someone is choking in the lobby, help!"
 → {"actions":[{"department":"security","summary":"Respond to medical emergency in lobby","details":"Guest reports person choking in lobby. Immediate response required.","priority":"emergency","requires_coordination_with":["front_desk"]},{"department":"front_desk","summary":"Coordinate emergency response","details":"Medical emergency reported in lobby.","priority":"emergency","requires_coordination_with":[]}],"intent":"emergency","sentiment":"distressed","confidence":0.98}
+
+Example 5 — food complaint (not an emergency)
+Guest: "Our room service arrived cold and the steak was wrong. Very disappointed."
+→ {"actions":[{"department":"food_beverage","summary":"Replace incorrect cold room-service order","details":"Guest reports cold delivery and wrong steak. Recover promptly.","priority":"high","requires_coordination_with":["guest_relations"]},{"department":"guest_relations","summary":"Service recovery for F&B miss","details":"Guest disappointed with room service quality.","priority":"high","requires_coordination_with":[]}],"intent":"fnb_complaint","sentiment":"frustrated","confidence":0.92}
+
+Example 6 — noise disturbance
+Guest: "The people next door are extremely loud and it's 1am."
+→ {"actions":[{"department":"security","summary":"Address noise complaint from neighbouring room","details":"Guest reports excessive noise from adjacent room at 1am.","priority":"high","requires_coordination_with":["front_desk"]},{"department":"front_desk","summary":"Support noise complaint resolution","details":"Coordinate with security on late-night noise issue.","priority":"high","requires_coordination_with":[]}],"intent":"noise_complaint","sentiment":"frustrated","confidence":0.9}
+
+Example 7 — laundry
+Guest: "Can you press my suit by 5pm?"
+→ {"actions":[{"department":"laundry","summary":"Press suit by 5pm","details":"Guest needs suit pressed; deadline 5pm.","priority":"normal","requires_coordination_with":[]}],"intent":"laundry_request","sentiment":"neutral","confidence":0.93}
 """
