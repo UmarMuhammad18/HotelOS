@@ -22,7 +22,8 @@ writes are no longer process-local.
 
 from __future__ import annotations
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
+from fastapi.responses import PlainTextResponse
 
 from app.agents.orchestrator import Orchestrator
 from app.api import routes as api_routes
@@ -33,26 +34,20 @@ from app.memory.outcome_store import build_outcome_store
 from app.memory.store import build_store
 from app.services.outcome_recorder import OutcomeRecorder
 from app.utils.logging import setup_logging
+from app.utils.tracing import TraceIdMiddleware
 
 
 def create_app() -> FastAPI:
     setup_logging()
     settings = get_settings()
 
-    # --- Guest memory ---
     guest_store = build_store(settings.database_url, settings.guest_memory_path)
     memory = GuestMemory(guest_store)
 
-    # --- Outcome telemetry ---
-    # Path is derived from the guest-memory path so dev installs get a
-    # sensible default ("./data/outcomes.json" alongside the guest
-    # memory file). Customers can override via OUTCOME_STORE_PATH if
-    # they want a different location.
     outcome_path = settings.outcome_store_path
     outcome_store = build_outcome_store(settings.database_url, outcome_path)
     recorder = OutcomeRecorder(outcome_store)
 
-    # --- LLM + orchestrator ---
     llm = build_llm()
     orchestrator = Orchestrator(
         llm=llm,
@@ -61,9 +56,20 @@ def create_app() -> FastAPI:
         property_id=settings.property_id,
     )
 
-    app = FastAPI(title="Hotel AI Advisor", version="0.5.0")
+    app = FastAPI(title="Hotel AI Advisor", version="0.6.0")
+    app.add_middleware(TraceIdMiddleware)
 
-    # Wire DI hooks
+    @app.get("/metrics")
+    def prometheus_metrics() -> Response:
+        if not settings.enable_prometheus:
+            return PlainTextResponse("# disabled\n", status_code=404)
+        from app.utils.prometheus import metrics_payload
+
+        return Response(
+            content=metrics_payload(),
+            media_type="text/plain; version=0.0.4",
+        )
+
     app.dependency_overrides[api_routes.get_orchestrator] = lambda: orchestrator
     app.dependency_overrides[api_routes.get_memory] = lambda: memory
     app.dependency_overrides[api_routes.get_llm] = lambda: llm
