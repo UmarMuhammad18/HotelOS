@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Dict, List, Any
+from typing import Dict, List
 
 MEMORY_FILE = "guest_memory.json"
 
@@ -8,9 +8,9 @@ def get_memory() -> Dict[str, List[str]]:
     if not os.path.exists(MEMORY_FILE):
         return {}
     try:
-        with open(MEMORY_FILE, "r") as f:
+        with open(MEMORY_FILE) as f:
             return json.load(f)
-    except:
+    except Exception:
         return {}
 
 def save_memory(memory: Dict[str, List[str]]):
