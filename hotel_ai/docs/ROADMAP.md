@@ -37,12 +37,14 @@ Goal: `/v1/events` turns a guest message into a routed task plus a guest ack.
 - [x] Confidence scores on classifications → `needs_human_triage` when confidence < 0.55
 - [ ] Multi-step planning for highly coordinated requests (follow-up)
 
-## Phase 3 — Memory & learning (next)
+## Phase 3 — Memory & learning ✅ (this release)
 
-- [ ] Nightly worker: summarise the day's events per guest into durable preferences
-- [ ] Proactive hooks on check-in: pre-create tasks from known preferences
-- [ ] Guest memory diff API so the frontend can show "we remembered: X"
-- [ ] Stay-complete summary (out-of-band)
+- [x] Deterministic preference learner (`app/memory/preference_learner.py`)
+- [x] `POST /v1/guests/{id}/memory/learn` — materialise prefs from history
+- [x] `GET /v1/guests/{id}/memory/diff` — preview for "we remembered: X" UI
+- [x] `GET /v1/guests/{id}/proactive-checkin` — pre-arrival task suggestions
+- [x] `POST /v1/guests/{id}/stay-complete` — checkout: learn + final summary
+- [ ] Nightly batch worker over all guests (call learn per guest via cron)
 
 ## Phase 4 — Emergency, moderation & accessibility polish
 
