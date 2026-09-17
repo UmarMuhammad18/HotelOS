@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from typing import Any
+
+from pydantic import BaseModel, Field
 
 from app.models import (
     GuestProfile,
@@ -73,3 +75,39 @@ class WebhookTestResponse(BaseModel):
     """`/v1/webhooks/test` — confirms Node→Python connectivity + auth."""
     received: bool
     echo: str
+
+
+# --- Phase 3 -----------------------------------------------------------------
+
+
+class MemoryDiffResponse(BaseModel):
+    """Preferences that learning would (or did) materialise."""
+    guest_id: str
+    learned: dict[str, Any] = Field(default_factory=dict)
+    message: str = ""
+
+
+class LearnPreferencesResponse(BaseModel):
+    """Result of running preference learning and writing to the profile."""
+    guest_id: str
+    learned: dict[str, Any] = Field(default_factory=dict)
+    profile: GuestProfile | None = None
+
+
+class ProactiveTask(BaseModel):
+    department: str
+    summary: str
+    details: str
+
+
+class ProactiveCheckinResponse(BaseModel):
+    """Suggested pre-arrival tasks from known preferences."""
+    guest_id: str
+    tasks: list[ProactiveTask] = Field(default_factory=list)
+
+
+class StayCompleteResponse(BaseModel):
+    """Checkout / stay-complete: learn preferences + final summary."""
+    guest_id: str
+    summary: str
+    learned: dict[str, Any] = Field(default_factory=dict)
