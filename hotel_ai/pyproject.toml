@@ -10,8 +10,8 @@ line-length = 100
 src = ["app", "tests"]
 
 [tool.ruff.lint]
-# Correctness-first so CI stays green while we incrementally adopt
-# stricter style rules (I/UP/B) across the codebase.
+# Correctness-first so CI stays green while we incrementally clean up.
+# Re-enable F401/F841 and add I/UP/B once ruff --fix is applied repo-wide.
 select = [
     "E",   # pycodestyle errors
     "F",   # pyflakes
@@ -19,6 +19,7 @@ select = [
 ignore = [
     "E501",  # line length (formatter)
     "E722",  # bare except in legacy helpers
+    "F401",  # unused import — gradual cleanup
     "F841",  # unused local — gradual cleanup
 ]
 
