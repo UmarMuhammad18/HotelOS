@@ -5,6 +5,7 @@ pydantic>=2.8.0
 pydantic-settings>=2.4.0
 httpx>=0.27.0
 python-dotenv>=1.0.0
+python-json-logger>=2.0.7
 
 # LLM providers (install all; only the configured one is used at runtime)
 groq>=0.9.0
