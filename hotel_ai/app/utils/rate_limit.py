@@ -21,6 +21,8 @@ class RateLimiter:
     """Sliding 60s window. max_per_minute=0 disables."""
 
     def __init__(self, max_per_minute: int = 60, redis_url: str = "") -> None:
+        if max_per_minute < 0:
+            raise ValueError("max_per_minute must be >= 0")
         self.max_per_minute = max_per_minute
         self._redis_url = redis_url
         self._redis = None
@@ -49,7 +51,7 @@ class RateLimiter:
         return self._check_memory(key)
 
     def _check_memory(self, key: str) -> bool:
-        now = time.time()
+        now = time.monotonic()
         window_start = now - 60.0
         with self._lock:
             q = self._hits[key]
@@ -72,3 +74,16 @@ class RateLimiter:
         results = pipe.execute()
         count = int(results[1])
         return count < self.max_per_minute
+
+    def reset(self, key: str | None) -> None:
+        """Clear one key, or all keys when key is None."""
+        if self._redis is not None and key is not None:
+            try:
+                self._redis.delete(f"rl:{key}")
+            except Exception as e:  # noqa: BLE001
+                log.warning("rate_limiter_redis_reset_failed", extra={"error": str(e)})
+        with self._lock:
+            if key is None:
+                self._hits.clear()
+            else:
+                self._hits.pop(key, None)
