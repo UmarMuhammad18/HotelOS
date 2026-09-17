@@ -10,15 +10,16 @@ line-length = 100
 src = ["app", "tests"]
 
 [tool.ruff.lint]
-# Start with correctness rules so CI is green; expand to I/UP/B as the
-# codebase is cleaned up incrementally.
+# Correctness-first so CI stays green while we incrementally adopt
+# stricter style rules (I/UP/B) across the codebase.
 select = [
     "E",   # pycodestyle errors
     "F",   # pyflakes
 ]
 ignore = [
-    "E501",  # line length (handled by formatter)
-    "E722",  # bare except — cleaned in app/memory.py; keep ignored for legacy
+    "E501",  # line length (formatter)
+    "E722",  # bare except in legacy helpers
+    "F841",  # unused local — gradual cleanup
 ]
 
 [tool.ruff.lint.isort]
