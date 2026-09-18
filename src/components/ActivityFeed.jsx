@@ -62,6 +62,15 @@ function FeedItem({ item, index }) {
               ? `Room ${item.room} → ${item.status || ''}`
               : item.message}
           </span>
+          {(item.emergency || (item.priority || '').toLowerCase() === 'emergency') && (
+            <span className="ho-badge ho-badge-emergency">Emergency</span>
+          )}
+          {(item.needs_human_triage || item.needsHumanTriage) && (
+            <span className="ho-badge ho-badge-triage">Triage</span>
+          )}
+          {item.confidence != null && (
+            <span className="ho-badge ho-badge-info">{Math.round(Number(item.confidence) * 100)}%</span>
+          )}
         </div>
         {item.details && (
           <div style={{ fontSize: 11, color: '#8892a4', marginTop: 4 }}>

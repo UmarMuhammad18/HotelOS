@@ -26,6 +26,13 @@ export default function SystemHealth() {
         <div className="usage-card"><h3>Agent Decisions (Today)</h3><div className="usage-val">{stats?.agentDecisionsToday}</div></div>
         <div className="usage-card"><h3>WS Connections</h3><div className="usage-val">{stats?.wsConnections}</div></div>
       </div>
-    </div>
+    
+      <div className="ho-card" style={{ marginTop: 20 }}>
+        <div style={{ fontFamily: 'var(--ho-mono)', fontSize: 11, color: 'var(--ho-text-muted)', marginBottom: 8 }}>AI ADVISOR</div>
+        <p style={{ margin: 0, fontSize: 14, color: 'var(--ho-text-muted)' }}>
+          Deep health (`/v1/health/deep`) reports LLM reachability and storage readiness when proxied through the backend.
+        </p>
+      </div>
+</div>
   );
 }
