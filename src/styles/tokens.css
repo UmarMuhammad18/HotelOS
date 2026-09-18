@@ -1,0 +1,72 @@
+:root {
+  --ho-bg: #090b0f;
+  --ho-bg-elevated: #0e1117;
+  --ho-bg-card: #12161f;
+  --ho-border: rgba(255, 255, 255, 0.07);
+  --ho-border-strong: rgba(255, 255, 255, 0.12);
+  --ho-text: #e8eaf0;
+  --ho-text-muted: #8892a4;
+  --ho-accent: #f5a623;
+  --ho-accent-soft: rgba(245, 166, 35, 0.15);
+  --ho-danger: #ef4444;
+  --ho-danger-soft: rgba(239, 68, 68, 0.15);
+  --ho-success: #22c55e;
+  --ho-success-soft: rgba(34, 197, 94, 0.15);
+  --ho-warning: #eab308;
+  --ho-info: #3b82f6;
+  --ho-radius: 12px;
+  --ho-radius-lg: 16px;
+  --ho-font: 'Inter', system-ui, -apple-system, sans-serif;
+  --ho-mono: 'Space Mono', ui-monospace, monospace;
+  --ho-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+
+body {
+  background: var(--ho-bg);
+  color: var(--ho-text);
+  font-family: var(--ho-font);
+}
+
+.ho-card {
+  background: var(--ho-bg-elevated);
+  border: 1px solid var(--ho-border);
+  border-radius: var(--ho-radius-lg);
+  padding: 20px;
+}
+.ho-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-family: var(--ho-mono);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.ho-badge-emergency { background: var(--ho-danger-soft); color: var(--ho-danger); border: 1px solid rgba(239,68,68,0.35); }
+.ho-badge-triage { background: rgba(234,179,8,0.15); color: var(--ho-warning); border: 1px solid rgba(234,179,8,0.35); }
+.ho-badge-ok { background: var(--ho-success-soft); color: var(--ho-success); border: 1px solid rgba(34,197,94,0.35); }
+.ho-badge-info { background: rgba(59,130,246,0.15); color: var(--ho-info); border: 1px solid rgba(59,130,246,0.35); }
+.ho-btn {
+  background: var(--ho-accent);
+  color: #090b0f;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 13px;
+}
+.ho-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.ho-btn-ghost {
+  background: transparent;
+  color: var(--ho-text-muted);
+  border: 1px solid var(--ho-border-strong);
+  border-radius: 10px;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.ho-btn-ghost:hover { color: var(--ho-text); border-color: var(--ho-accent); }

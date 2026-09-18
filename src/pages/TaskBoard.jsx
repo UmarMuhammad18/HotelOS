@@ -1,281 +1,198 @@
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useMemo, useState } from 'react';
+import { motion } from 'framer-motion';
 import useWebSocketStore from '../stores/useWebSocketStore';
 
-function TaskCard({ task, onAssign, onStatusUpdate }) {
-  const statusColors = {
-    pending: '#f5a623',
-    'in-progress': '#60a5fa',
-    completed: '#4ade80',
-  };
+const COLUMNS = [
+  { id: 'pending', label: 'Pending', statuses: ['pending', 'open', 'new'] },
+  { id: 'assigned', label: 'Assigned', statuses: ['assigned'] },
+  { id: 'in-progress', label: 'In progress', statuses: ['in-progress', 'in_progress', 'active'] },
+  { id: 'completed', label: 'Done', statuses: ['completed', 'done', 'resolved'] },
+];
 
+const priorityColor = {
+  emergency: '#ef4444',
+  urgent: '#f97316',
+  high: '#eab308',
+  normal: '#8892a4',
+  low: '#64748b',
+};
+
+function normalizeStatus(s) {
+  return (s || 'pending').toLowerCase().replace('_', '-');
+}
+
+function TaskCard({ task, onStatusUpdate, onAssign }) {
+  const pri = (task.priority || 'normal').toLowerCase();
+  const color = priorityColor[pri] || priorityColor.normal;
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.95 }}
-      className="task-card"
+      className="ho-card"
+      style={{ padding: 14, marginBottom: 10, borderLeft: `3px solid ${color}` }}
     >
-      <div className="task-header">
-        <h3 className="task-title">{task.title}</h3>
-        <span className="status-badge" style={{ 
-          background: `${statusColors[task.status]}15`, 
-          color: statusColors[task.status],
-          borderColor: `${statusColors[task.status]}30`
-        }}>
-          {task.status.replace('-', ' ')}
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+        <strong style={{ fontSize: 14 }}>{task.title || task.summary || 'Task'}</strong>
+        <span className="ho-badge" style={{ background: `${color}22`, color, border: `1px solid ${color}44` }}>
+          {pri}
         </span>
       </div>
-      <p className="task-desc">{task.description}</p>
-      
-      <div className="task-actions">
-        <div className="assign-box">
-          <label className="action-label">ASSIGNED TO</label>
-          <select
-            className="task-select"
-            value={task.assignedTo || ''}
-            onChange={(e) => onAssign(task.id, e.target.value)}
-          >
-            <option value="">Unassigned</option>
-            <option value="John">John (Housekeeping)</option>
-            <option value="Sarah">Sarah (Maintenance)</option>
-            <option value="Mike">Mike (Front Desk)</option>
-            <option value="AI Agent">AI Agent (Automated)</option>
-          </select>
+      <p style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--ho-text-muted)' }}>
+        {task.description || task.details || ''}
+      </p>
+      {(task.department || task.room) && (
+        <div style={{ fontSize: 11, color: 'var(--ho-text-muted)', marginBottom: 10, fontFamily: 'var(--ho-mono)' }}>
+          {[task.department, task.room ? `Room ${task.room}` : null].filter(Boolean).join(' · ')}
         </div>
-        
-        {task.status !== 'completed' && (
-          <button
-            className="complete-btn"
-            onClick={() => onStatusUpdate(task.id, 'completed')}
-          >
-            Mark Complete
-          </button>
-        )}
+      )}
+      {task.repeatIssue && <span className="ho-badge ho-badge-triage" style={{ marginBottom: 8 }}>Repeat issue</span>}
+      {task.needsHumanTriage && <span className="ho-badge ho-badge-triage" style={{ marginBottom: 8 }}>Human triage</span>}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <select
+          value={task.assignedTo || ''}
+          onChange={(e) => onAssign?.(task.id, e.target.value)}
+          style={{
+            width: '100%',
+            background: 'rgba(255,255,255,0.03)',
+            border: '1px solid var(--ho-border)',
+            borderRadius: 8,
+            color: 'var(--ho-text)',
+            padding: '8px 10px',
+            fontSize: 12,
+          }}
+        >
+          <option value="">Unassigned</option>
+          <option value="John">John (Housekeeping)</option>
+          <option value="Sarah">Sarah (Maintenance)</option>
+          <option value="Mike">Mike (Front Desk)</option>
+          <option value="AI Agent">AI Agent</option>
+        </select>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {COLUMNS.filter((c) => !c.statuses.includes(normalizeStatus(task.status))).map((c) => (
+            <button
+              key={c.id}
+              className="ho-btn-ghost"
+              style={{ padding: '6px 10px', fontSize: 11 }}
+              onClick={() => onStatusUpdate?.(task.id, c.statuses[0])}
+            >
+              → {c.label}
+            </button>
+          ))}
+        </div>
       </div>
     </motion.div>
   );
 }
 
 export default function TaskBoard() {
-  const { tasks, updateTaskStatus, assignTask } = useWebSocketStore();
-  const [filter, setFilter] = useState('all');
+  const { tasks = [], updateTaskStatus, assignTask } = useWebSocketStore();
+  const [dept, setDept] = useState('all');
+  const [priority, setPriority] = useState('all');
 
-  const filteredTasks = tasks.filter(t => filter === 'all' ? true : t.status === filter);
+  const filtered = useMemo(() => {
+    return (tasks || []).filter((t) => {
+      if (dept !== 'all' && (t.department || '').toLowerCase() !== dept) return false;
+      if (priority !== 'all' && (t.priority || 'normal').toLowerCase() !== priority) return false;
+      return true;
+    });
+  }, [tasks, dept, priority]);
+
+  const byColumn = useMemo(() => {
+    const map = Object.fromEntries(COLUMNS.map((c) => [c.id, []]));
+    for (const t of filtered) {
+      const st = normalizeStatus(t.status);
+      const col = COLUMNS.find((c) => c.statuses.includes(st)) || COLUMNS[0];
+      map[col.id].push(t);
+    }
+    return map;
+  }, [filtered]);
+
+  const departments = useMemo(() => {
+    const set = new Set((tasks || []).map((t) => (t.department || '').toLowerCase()).filter(Boolean));
+    return ['all', ...Array.from(set)];
+  }, [tasks]);
 
   return (
-    <div className="task-board-container">
-      <style>{`
-        .task-board-container {
-          max-width: 900px;
-          margin: 0 auto;
-        }
-
-        .board-header {
-          margin-bottom: 32px;
-        }
-
-        .board-title {
-          font-size: 24px;
-          font-weight: 700;
-          color: #e8eaf0;
-          margin-bottom: 8px;
-        }
-
-        .filter-row {
-          display: flex;
-          gap: 8px;
-          flex-wrap: wrap;
-          margin-bottom: 32px;
-        }
-
-        .filter-btn {
-          background: transparent;
-          border: 1px solid rgba(255, 255, 255, 0.07);
-          border-radius: 10px;
-          padding: 8px 16px;
-          font-size: 11px;
-          font-family: 'Space Mono', monospace;
-          color: #8892a4;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .filter-btn.active {
-          background: rgba(245, 166, 35, 0.1);
-          border-color: #f5a623;
-          color: #f5a623;
-        }
-
-        .task-card {
-          background: #0e1117;
-          border: 1px solid rgba(255, 255, 255, 0.07);
-          border-radius: 16px;
-          padding: 20px;
-          margin-bottom: 16px;
-          transition: border-color 0.2s;
-        }
-
-        .task-card:hover {
-          border-color: rgba(255, 255, 255, 0.12);
-        }
-
-        .task-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          margin-bottom: 12px;
-        }
-
-        .task-title {
-          font-size: 16px;
-          font-weight: 600;
-          color: #fff;
-        }
-
-        .status-badge {
-          font-size: 9px;
-          font-family: 'Space Mono', monospace;
-          font-weight: 700;
-          padding: 2px 10px;
-          border-radius: 6px;
-          border: 1px solid transparent;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-        }
-
-        .task-desc {
-          font-size: 13px;
-          color: #8892a4;
-          line-height: 1.6;
-          margin-bottom: 20px;
-        }
-
-        .task-actions {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-end;
-          padding-top: 16px;
-          border-top: 1px solid rgba(255, 255, 255, 0.03);
-        }
-
-        .action-label {
-          display: block;
-          font-size: 9px;
-          font-family: 'Space Mono', monospace;
-          color: #4e5a6e;
-          margin-bottom: 6px;
-          letter-spacing: 0.1em;
-        }
-
-        .task-select {
-          background: #0c0f16;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 8px;
-          padding: 6px 12px;
-          font-size: 12px;
-          color: #e8eaf0;
-          outline: none;
-          cursor: pointer;
-        }
-
-        .complete-btn {
-          background: rgba(74, 222, 128, 0.1);
-          border: 1px solid rgba(74, 222, 128, 0.3);
-          border-radius: 8px;
-          padding: 8px 16px;
-          font-size: 11px;
-          font-family: 'Space Mono', monospace;
-          color: #4ade80;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .complete-btn:hover {
-          background: rgba(74, 222, 128, 0.2);
-          border-color: #4ade80;
-        }
-
-        .empty-state {
-          text-align: center;
-          padding: 60px 20px;
-          background: rgba(255, 255, 255, 0.01);
-          border: 1px dashed rgba(255, 255, 255, 0.07);
-          border-radius: 16px;
-          color: #3e4e62;
-          font-size: 14px;
-        }
-
-        @media (max-width: 640px) {
-          .task-actions {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 16px;
-          }
-          
-          .assign-box {
-            width: 100%;
-          }
-
-          .task-select {
-            width: 100%;
-          }
-          
-          .complete-btn {
-            width: 100%;
-          }
-
-          .filter-row {
-            justify-content: center;
-          }
-          
-          .filter-btn {
-            flex: 1;
-            text-align: center;
-          }
-        }
-      `}</style>
-
-      <div className="board-header">
-        <h1 className="board-title">Operations Task Board</h1>
-        <div className="filter-row">
-          {['all', 'pending', 'in-progress', 'completed'].map(f => (
-            <button
-              key={f}
-              className={`filter-btn ${filter === f ? 'active' : ''}`}
-              onClick={() => setFilter(f)}
-            >
-              {f.toUpperCase()}
-            </button>
-          ))}
-        </div>
+    <div>
+      <div style={{ marginBottom: 20 }}>
+        <h1 style={{ margin: '0 0 6px', fontSize: 24 }}>Task board</h1>
+        <p style={{ margin: 0, color: 'var(--ho-text-muted)', fontSize: 14 }}>
+          Lifecycle: pending → assigned → in progress → done
+        </p>
       </div>
 
-      <div className="task-list">
-        <AnimatePresence mode="popLayout">
-          {filteredTasks.length === 0 ? (
-            <motion.div 
-              key="empty"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="empty-state"
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
+        <select
+          value={dept}
+          onChange={(e) => setDept(e.target.value)}
+          style={{
+            background: 'var(--ho-bg-card)',
+            color: 'var(--ho-text)',
+            border: '1px solid var(--ho-border)',
+            borderRadius: 8,
+            padding: '8px 12px',
+          }}
+        >
+          {departments.map((d) => (
+            <option key={d} value={d}>
+              {d === 'all' ? 'All departments' : d}
+            </option>
+          ))}
+        </select>
+        <select
+          value={priority}
+          onChange={(e) => setPriority(e.target.value)}
+          style={{
+            background: 'var(--ho-bg-card)',
+            color: 'var(--ho-text)',
+            border: '1px solid var(--ho-border)',
+            borderRadius: 8,
+            padding: '8px 12px',
+          }}
+        >
+          <option value="all">All priorities</option>
+          <option value="emergency">Emergency</option>
+          <option value="urgent">Urgent</option>
+          <option value="high">High</option>
+          <option value="normal">Normal</option>
+          <option value="low">Low</option>
+        </select>
+      </div>
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(4, minmax(200px, 1fr))',
+          gap: 12,
+          overflowX: 'auto',
+        }}
+      >
+        {COLUMNS.map((col) => (
+          <div key={col.id} style={{ minWidth: 200 }}>
+            <div
+              style={{
+                fontFamily: 'var(--ho-mono)',
+                fontSize: 11,
+                color: 'var(--ho-text-muted)',
+                marginBottom: 10,
+                letterSpacing: '0.06em',
+              }}
             >
-              No tasks match the current filter
-            </motion.div>
-          ) : (
-            filteredTasks.map(task => (
-              <TaskCard 
-                key={task.id} 
-                task={task} 
-                onAssign={assignTask} 
-                onStatusUpdate={updateTaskStatus} 
+              {col.label.toUpperCase()} · {byColumn[col.id].length}
+            </div>
+            {byColumn[col.id].map((t) => (
+              <TaskCard
+                key={t.id || t.title}
+                task={t}
+                onStatusUpdate={updateTaskStatus}
+                onAssign={assignTask}
               />
-            ))
-          )}
-        </AnimatePresence>
+            ))}
+            {!byColumn[col.id].length && (
+              <div style={{ color: 'var(--ho-text-muted)', fontSize: 12, padding: 12 }}>No tasks</div>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   );
-}
+}

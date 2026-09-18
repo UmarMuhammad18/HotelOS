@@ -1,3 +1,4 @@
+import EmergencyBanner from './components/EmergencyBanner';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import ConnectionStatus from './components/ConnectionStatus';
@@ -14,7 +15,7 @@ export default function DashboardLayout() {
   const location = useLocation();
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
-  
+
   useWebSocketClient(WS_URL);
 
   const isActive = (path, isFullPath = false) => {
@@ -38,7 +39,6 @@ export default function DashboardLayout() {
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [navigate, user?.role]);
 
-  // Close sidebar on navigation (mobile)
   useEffect(() => {
     setSidebarOpen(false);
   }, [location]);
@@ -59,7 +59,6 @@ export default function DashboardLayout() {
           color: #e8eaf0;
           font-family: 'Outfit', sans-serif;
         }
-
         .top-bar {
           display: flex;
           align-items: center;
@@ -70,7 +69,6 @@ export default function DashboardLayout() {
           border-bottom: 1px solid rgba(255, 255, 255, 0.07);
           z-index: 100;
         }
-
         .logo-section {
           display: flex;
           align-items: center;
@@ -80,7 +78,6 @@ export default function DashboardLayout() {
           color: #f5a623;
           text-decoration: none;
         }
-
         .menu-toggle {
           display: none;
           background: none;
@@ -90,14 +87,12 @@ export default function DashboardLayout() {
           cursor: pointer;
           padding: 8px;
         }
-
         .main-layout {
           display: flex;
           flex: 1;
           overflow: hidden;
           position: relative;
         }
-
         .sidebar {
           width: 260px;
           background: #0c0f16;
@@ -106,7 +101,6 @@ export default function DashboardLayout() {
           transition: transform 0.3s ease;
           z-index: 90;
         }
-
         .nav-link {
           display: flex;
           align-items: center;
@@ -119,37 +113,29 @@ export default function DashboardLayout() {
           transition: all 0.2s;
           border-left: 3px solid transparent;
         }
-
         .nav-link:hover {
           color: #fff;
           background: rgba(255, 255, 255, 0.02);
         }
-
         .nav-link.active {
           color: #f5a623;
           background: rgba(245, 166, 35, 0.08);
           border-left-color: #f5a623;
         }
-
         .content-area {
           flex: 1;
           overflow: auto;
           padding: 32px;
           background: radial-gradient(circle at top right, rgba(245, 166, 35, 0.03), transparent);
         }
-
         .overlay {
           display: none;
           position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
+          inset: 0;
           background: rgba(0, 0, 0, 0.7);
           backdrop-filter: blur(4px);
           z-index: 85;
         }
-
         @media (max-width: 1024px) {
           .sidebar {
             position: absolute;
@@ -158,39 +144,29 @@ export default function DashboardLayout() {
             left: 0;
             transform: translateX(-100%);
           }
-
-          .sidebar.open {
-            transform: translateX(0);
-          }
-
-          .menu-toggle {
-            display: block;
-          }
-
-          .overlay.open {
-            display: block;
-          }
-
-          .content-area {
-            padding: 20px;
-          }
+          .sidebar.open { transform: translateX(0); }
+          .menu-toggle { display: block; }
+          .overlay.open { display: block; }
+          .content-area { padding: 20px; }
         }
       `}</style>
 
       <EventAnimationTrigger />
-      
+
       <header className="top-bar">
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <button className="menu-toggle" onClick={() => setSidebarOpen(!isSidebarOpen)}>
             {isSidebarOpen ? '✕' : '☰'}
           </button>
           <Link to="/" className="logo-section">
-            <div style={{
-              width: 24,
-              height: 24,
-              background: '#f5a623',
-              clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)'
-            }} />
+            <div
+              style={{
+                width: 24,
+                height: 24,
+                background: '#f5a623',
+                clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)',
+              }}
+            />
             <span>HOTELOS</span>
           </Link>
         </div>
@@ -224,7 +200,7 @@ export default function DashboardLayout() {
 
       <div className="main-layout">
         <div className={`overlay ${isSidebarOpen ? 'open' : ''}`} onClick={() => setSidebarOpen(false)} />
-        
+
         <aside className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
           {user?.role === 'admin' ? (
             <>
@@ -233,6 +209,9 @@ export default function DashboardLayout() {
               </Link>
               <Link to="/admin/revenue" className={`nav-link ${isActive('/admin/revenue', true) ? 'active' : ''}`}>
                 <span>💰</span> Revenue Analytics
+              </Link>
+              <Link to="/admin/metrics" className={`nav-link ${isActive('/admin/metrics', true) ? 'active' : ''}`}>
+                <span>📈</span> Metrics digest
               </Link>
               <Link to="/admin/reviews" className={`nav-link ${isActive('/admin/reviews', true) ? 'active' : ''}`}>
                 <span>⭐</span> Reviews Manager
@@ -270,9 +249,11 @@ export default function DashboardLayout() {
               <Link to="/dashboard/tasks" className={`nav-link ${isActive('/tasks') ? 'active' : ''}`}>
                 <span>📋</span> Task Board
               </Link>
-              
+
               <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', margin: '16px 0', paddingTop: '16px' }}>
-                <div style={{ paddingLeft: '24px', fontSize: '12px', color: '#666', marginBottom: '8px', fontWeight: '600' }}>DEPARTMENTS</div>
+                <div style={{ paddingLeft: '24px', fontSize: '12px', color: '#666', marginBottom: '8px', fontWeight: '600' }}>
+                  DEPARTMENTS
+                </div>
                 <Link to="/dashboard/department/concierge" className={`nav-link ${isActive('/department/concierge') ? 'active' : ''}`}>
                   <span>🎩</span> Concierge
                 </Link>
@@ -300,6 +281,7 @@ export default function DashboardLayout() {
         </aside>
 
         <main className="content-area">
+          <EmergencyBanner />
           <Outlet />
         </main>
       </div>

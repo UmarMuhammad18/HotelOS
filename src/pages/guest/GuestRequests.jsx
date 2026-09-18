@@ -69,6 +69,25 @@ export default function GuestRequests() {
 
       <h2>New Request</h2>
 
+      <div className="quick-chips" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
+        {[
+          { label: 'Extra towels', type: 'housekeeping', details: 'Please bring extra towels' },
+          { label: 'AC issue', type: 'maintenance', details: 'Air conditioning is not working properly' },
+          { label: 'Late checkout', type: 'front_desk', details: 'Requesting late checkout' },
+          { label: 'Room service', type: 'food_beverage', details: 'I would like to order room service' },
+        ].map((c) => (
+          <button
+            key={c.label}
+            type="button"
+            className="ho-btn-ghost"
+            onClick={() => { setRequestType(c.type); setDetails(c.details); }}
+          >
+            {c.label}
+          </button>
+        ))}
+      </div>
+
+
       <motion.form 
         className="request-form"
         onSubmit={handleSubmit}
@@ -78,9 +97,12 @@ export default function GuestRequests() {
         <div className="form-group">
           <label>Request Type</label>
           <select value={requestType} onChange={(e) => setRequestType(e.target.value)}>
-            <option value="housekeeping">Housekeeping (Towels, Cleaning)</option>
-            <option value="maintenance">Maintenance (Repair, AC)</option>
-            <option value="front desk">Front Desk (Taxi, Wake up)</option>
+            <option value="housekeeping">Housekeeping</option>
+            <option value="maintenance">Maintenance</option>
+            <option value="front_desk">Front desk</option>
+            <option value="food_beverage">Food & beverage</option>
+            <option value="concierge">Concierge</option>
+            <option value="spa">Spa</option>
             <option value="other">Other</option>
           </select>
         </div>

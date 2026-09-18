@@ -1,3 +1,4 @@
+import GuestMemoryCard from '../../components/GuestMemoryCard';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
@@ -5,7 +6,7 @@ import useAuthStore from '../../stores/useAuthStore';
 import { API_BASE } from '../../config';
 
 export default function GuestHome() {
-  const { user } = useAuthStore();
+  const user = useAuthStore((s) => s.user);
   const [hotelInfo, setHotelInfo] = useState(null);
 
   useEffect(() => {
@@ -18,6 +19,11 @@ export default function GuestHome() {
 
   return (
     <div className="guest-home">
+      <GuestMemoryCard
+        guestId={user?.guestId || user?.id || user?.guest_id}
+        fallbackPrefs={user?.preferences}
+      />
+
       <style>{`
         .welcome-section {
           margin-bottom: 30px;
@@ -105,7 +111,7 @@ export default function GuestHome() {
             <span style={{ color: '#f5a623' }}>{hotelInfo?.wifi?.split(' / ')[1]}</span>
           </div>
           <hr style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.05)' }} />
-          {hotelInfo?.amenities.map((a, i) => (
+          {(hotelInfo?.amenities || []).map((a, i) => (
             <div className="amenity-item" key={i}>
               <span>{a.name}</span>
               <span style={{ color: '#8892a4' }}>{a.hours}</span>
